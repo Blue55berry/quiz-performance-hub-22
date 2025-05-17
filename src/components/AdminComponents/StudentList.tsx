@@ -1,92 +1,150 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 interface Student {
   id: string;
   name: string;
   email: string;
-  quizzesTaken: number;
-  lastActive: string;
+  roll_number: string;
+  created_at: string;
 }
+
+const formSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email"),
+  roll_number: z.string().min(1, "Roll number is required"),
+  password: z.string().min(6, "Password must be at least 6 characters")
+});
 
 const StudentList = () => {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddingStudent, setIsAddingStudent] = useState(false);
-  const [newStudent, setNewStudent] = useState({ name: '', email: '' });
+  const [isLoading, setIsLoading] = useState(true);
+  const [students, setStudents] = useState<Student[]>([]);
   
-  // Sample student data
-  const [students, setStudents] = useState<Student[]>([
-    {
-      id: '1',
-      name: 'John Doe',
-      email: 'john@example.com',
-      quizzesTaken: 3,
-      lastActive: '2025-05-16'
-    },
-    {
-      id: '2',
-      name: 'Jane Smith',
-      email: 'jane@example.com',
-      quizzesTaken: 2,
-      lastActive: '2025-05-15'
-    },
-    {
-      id: '3',
-      name: 'Robert Johnson',
-      email: 'robert@example.com',
-      quizzesTaken: 1,
-      lastActive: '2025-05-10'
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      roll_number: '',
+      password: ''
     }
-  ]);
+  });
+
+  useEffect(() => {
+    fetchStudents();
+  }, []);
   
-  const filteredStudents = students.filter(student => 
-    student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    student.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-  
-  const handleAddStudent = () => {
-    if (!newStudent.name || !newStudent.email) {
+  const fetchStudents = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('id, name, email, roll_number, created_at');
+      
+      if (error) {
+        throw error;
+      }
+      
+      setStudents(data || []);
+    } catch (error) {
+      console.error('Error fetching students:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Name and email are required.",
+        description: "Failed to load students. Please try again later.",
       });
-      return;
+    } finally {
+      setIsLoading(false);
     }
-    
-    const newId = (Math.max(...students.map(s => parseInt(s.id))) + 1).toString();
-    
-    const student: Student = {
-      id: newId,
-      name: newStudent.name,
-      email: newStudent.email,
-      quizzesTaken: 0,
-      lastActive: new Date().toISOString().split('T')[0]
-    };
-    
-    setStudents([...students, student]);
-    setNewStudent({ name: '', email: '' });
-    setIsAddingStudent(false);
-    
-    toast({
-      title: "Student added",
-      description: `${student.name} has been successfully added.`,
-    });
   };
   
-  const handleDeleteStudent = (id: string) => {
-    const studentToDelete = students.find(s => s.id === id);
-    setStudents(students.filter(s => s.id !== id));
-    
-    toast({
-      title: "Student deleted",
-      description: `${studentToDelete?.name} has been removed.`,
-    });
+  const handleAddStudent = async (values: z.infer<typeof formSchema>) => {
+    try {
+      const { error } = await supabase
+        .from('students')
+        .insert([{ 
+          name: values.name, 
+          email: values.email, 
+          roll_number: values.roll_number,
+          password: values.password
+        }]);
+      
+      if (error) {
+        if (error.code === '23505') { // Unique constraint violation
+          if (error.message.includes('email')) {
+            form.setError('email', { message: 'Email already exists' });
+          } else if (error.message.includes('roll_number')) {
+            form.setError('roll_number', { message: 'Roll number already exists' });
+          }
+          throw new Error('This student already exists');
+        }
+        throw error;
+      }
+      
+      form.reset();
+      setIsAddingStudent(false);
+      toast({
+        title: "Student added",
+        description: `${values.name} has been successfully added.`,
+      });
+      
+      // Refresh student list
+      fetchStudents();
+    } catch (error: any) {
+      console.error('Error adding student:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to add student. Please try again.",
+      });
+    }
   };
+  
+  const handleDeleteStudent = async (id: string) => {
+    try {
+      const studentToDelete = students.find(s => s.id === id);
+      
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      setStudents(students.filter(s => s.id !== id));
+      
+      toast({
+        title: "Student deleted",
+        description: `${studentToDelete?.name} has been removed.`,
+      });
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to delete student. Please try again.",
+      });
+    }
+  };
+  
+  const filteredStudents = students.filter(student => 
+    student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    student.roll_number.toLowerCase().includes(searchQuery.toLowerCase())
+  );
   
   return (
     <div className="space-y-4">
@@ -103,24 +161,72 @@ const StudentList = () => {
       {isAddingStudent && (
         <div className="bg-muted p-4 rounded-md mb-4 animate-fade-in">
           <h3 className="text-lg font-semibold mb-3">Add New Student</h3>
-          <div className="grid gap-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                placeholder="Student Name"
-                value={newStudent.name}
-                onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
-              />
-              <Input
-                placeholder="Email Address"
-                value={newStudent.email}
-                onChange={(e) => setNewStudent({...newStudent, email: e.target.value})}
-              />
-            </div>
-            <div className="flex space-x-2">
-              <Button onClick={handleAddStudent}>Save</Button>
-              <Button variant="outline" onClick={() => setIsAddingStudent(false)}>Cancel</Button>
-            </div>
-          </div>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleAddStudent)} className="space-y-4">
+              <div className="grid gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="John Doe" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email Address</FormLabel>
+                        <FormControl>
+                          <Input placeholder="john@example.com" type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="roll_number"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Roll Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="A12345" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input placeholder="••••••••" type="password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                <Button type="submit">Save</Button>
+                <Button variant="outline" type="button" onClick={() => setIsAddingStudent(false)}>Cancel</Button>
+              </div>
+            </form>
+          </Form>
         </div>
       )}
       
@@ -131,19 +237,23 @@ const StudentList = () => {
               <tr>
                 <th className="px-4 py-3 text-left text-sm font-medium">Name</th>
                 <th className="px-4 py-3 text-left text-sm font-medium">Email</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Quizzes Taken</th>
-                <th className="px-4 py-3 text-left text-sm font-medium">Last Active</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">Roll Number</th>
                 <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filteredStudents.length > 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-3 text-center text-sm text-gray-500">
+                    Loading students...
+                  </td>
+                </tr>
+              ) : filteredStudents.length > 0 ? (
                 filteredStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-muted/50">
                     <td className="px-4 py-3 text-sm">{student.name}</td>
                     <td className="px-4 py-3 text-sm">{student.email}</td>
-                    <td className="px-4 py-3 text-sm">{student.quizzesTaken}</td>
-                    <td className="px-4 py-3 text-sm">{student.lastActive}</td>
+                    <td className="px-4 py-3 text-sm">{student.roll_number}</td>
                     <td className="px-4 py-3 text-right">
                       <Button 
                         variant="ghost" 
@@ -158,7 +268,7 @@ const StudentList = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-4 py-3 text-center text-sm text-gray-500">
+                  <td colSpan={4} className="px-4 py-3 text-center text-sm text-gray-500">
                     No students found
                   </td>
                 </tr>

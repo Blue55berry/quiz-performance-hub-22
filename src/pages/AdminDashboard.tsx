@@ -1,14 +1,35 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Navbar from '@/components/common/Navbar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import StudentList from '@/components/AdminComponents/StudentList';
 import PerformanceChart from '@/components/AdminComponents/PerformanceChart';
 import CertificateViewer from '@/components/AdminComponents/CertificateViewer';
+import { supabase } from '@/integrations/supabase/client';
 
 const AdminDashboard = () => {
   const [username] = useState('Admin');
+  const [totalStudents, setTotalStudents] = useState(0);
+  
+  useEffect(() => {
+    // Fetch student count from database
+    const fetchStudentCount = async () => {
+      try {
+        const { count, error } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true });
+        
+        if (error) throw error;
+        
+        setTotalStudents(count || 0);
+      } catch (error) {
+        console.error('Error fetching student count:', error);
+      }
+    };
+    
+    fetchStudentCount();
+  }, []);
   
   // Sample data for charts
   const completionData = [
@@ -46,7 +67,7 @@ const AdminDashboard = () => {
             <div className="text-gray-500 text-sm">Success Rate</div>
           </Card>
           <Card className="p-4">
-            <div className="text-2xl font-bold">{42}</div>
+            <div className="text-2xl font-bold">{totalStudents}</div>
             <div className="text-gray-500 text-sm">Registered Students</div>
           </Card>
         </div>
