@@ -6,33 +6,76 @@ import LanguageSelector from '@/components/StudentComponents/LanguageSelector';
 import CertificateUploader from '@/components/StudentComponents/CertificateUploader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [username, setUsername] = useState('');
+  const [studentId, setStudentId] = useState<string | null>(null);
+  const [certificates, setCertificates] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
     // Check if student is logged in
     const studentName = localStorage.getItem('studentName');
-    const studentId = localStorage.getItem('studentId');
+    const storedStudentId = localStorage.getItem('studentId');
     
-    if (!studentId || !studentName) {
+    if (!storedStudentId || !studentName) {
       toast({
         variant: "destructive",
         title: "Authentication required",
         description: "Please login to access the student dashboard.",
       });
-      navigate('/student/login');
+      navigate('/login');
       return;
     }
     
     setUsername(studentName);
+    setStudentId(storedStudentId);
+    
+    // Fetch student certificates
+    const fetchCertificates = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('certificates')
+          .select('*')
+          .eq('student_id', storedStudentId);
+          
+        if (error) throw error;
+        
+        setCertificates(data || []);
+      } catch (error) {
+        console.error('Error fetching certificates:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchCertificates();
   }, [navigate, toast]);
   
   const handleSelectLanguage = (language: string) => {
     localStorage.setItem('selectedLanguage', language);
     navigate('/student/quiz');
+  };
+
+  const handleCertificateUploaded = () => {
+    // Refresh certificates list when a new one is uploaded
+    if (studentId) {
+      setIsLoading(true);
+      supabase
+        .from('certificates')
+        .select('*')
+        .eq('student_id', studentId)
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setCertificates(data);
+          }
+          setIsLoading(false);
+        });
+    }
   };
 
   return (
@@ -60,20 +103,48 @@ const StudentDashboard = () => {
               
               <div className="mb-8">
                 <h3 className="text-lg font-semibold mb-4">Upload New Certificate</h3>
-                <CertificateUploader />
+                <CertificateUploader studentId={studentId} onUploadComplete={handleCertificateUploaded} />
               </div>
               
               <div>
-                <h3 className="text-lg font-semibold mb-4">Your Earned Certificates</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="certificate-container text-center">
-                    <h4 className="text-xl font-bold">JavaScript Mastery</h4>
-                    <p className="text-gray-600 mb-2">Awarded on May 15, 2025</p>
-                    <div className="flex justify-center mt-4">
-                      <button className="text-primary underline">View Certificate</button>
-                    </div>
+                <h3 className="text-lg font-semibold mb-4">Your Certificates</h3>
+                {isLoading ? (
+                  <p className="text-center py-4">Loading certificates...</p>
+                ) : certificates.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {certificates.map((cert) => (
+                      <Card key={cert.id} className="certificate-card">
+                        <CardHeader>
+                          <CardTitle className="text-xl">{cert.title || 'Uploaded Certificate'}</CardTitle>
+                          <p className="text-gray-600 text-sm">
+                            {cert.verified 
+                              ? 'Verified ✓' 
+                              : 'Pending Verification'}
+                          </p>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-gray-600 mb-2">
+                            Uploaded on {new Date(cert.created_at).toLocaleDateString()}
+                          </p>
+                          {cert.file_url && (
+                            <div className="flex justify-center mt-4">
+                              <a 
+                                href={cert.file_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="text-primary underline"
+                              >
+                                View Certificate
+                              </a>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
-                </div>
+                ) : (
+                  <p className="text-center py-4 text-gray-500">No certificates found. Upload one to get started!</p>
+                )}
               </div>
             </div>
           </TabsContent>

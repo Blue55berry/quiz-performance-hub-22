@@ -43,9 +43,9 @@ const Index = () => {
             <CardFooter className="flex justify-center">
               <Button 
                 className="w-full bg-purple-600 hover:bg-purple-700" 
-                onClick={() => navigate('/admin/login')}
+                onClick={() => navigate('/login')}
               >
-                Admin Login
+                Go to Login
               </Button>
             </CardFooter>
           </Card>
@@ -67,9 +67,9 @@ const Index = () => {
             <CardFooter className="flex justify-center">
               <Button 
                 className="w-full bg-purple-600 hover:bg-purple-700" 
-                onClick={() => navigate('/student/login')}
+                onClick={() => navigate('/login')}
               >
-                Student Login
+                Go to Login
               </Button>
             </CardFooter>
           </Card>

@@ -4,10 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from '@/integrations/supabase/client';
 
-const CertificateUploader = () => {
+interface CertificateUploaderProps {
+  studentId: string | null;
+  onUploadComplete?: () => void;
+}
+
+const CertificateUploader = ({ studentId, onUploadComplete }: CertificateUploaderProps) => {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,26 +33,97 @@ const CertificateUploader = () => {
       return;
     }
     
+    if (!studentId) {
+      toast({
+        variant: "destructive",
+        title: "Authentication error",
+        description: "Please login again to upload certificates.",
+      });
+      return;
+    }
+    
     setIsUploading(true);
     
-    // Simulating upload delay
-    setTimeout(() => {
-      setIsUploading(false);
-      setFile(null);
+    try {
+      // Upload file to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}`;
+      const filePath = `${fileName}.${fileExt}`;
+      
+      // First check if certificates bucket exists, if not this will fail gracefully
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
+        .from('certificates')
+        .upload(filePath, file);
+      
+      if (uploadError) {
+        throw new Error(`File upload failed: ${uploadError.message}`);
+      }
+      
+      // Get the public URL
+      const { data: publicURL } = supabase
+        .storage
+        .from('certificates')
+        .getPublicUrl(filePath);
+      
+      // Save certificate record in database
+      const { error: dbError } = await supabase
+        .from('certificates')
+        .insert([
+          {
+            student_id: studentId,
+            title: title || file.name,
+            file_url: publicURL.publicUrl,
+            file_path: filePath,
+            verified: false
+          }
+        ]);
+      
+      if (dbError) {
+        throw new Error(`Database error: ${dbError.message}`);
+      }
       
       toast({
         title: "Certificate uploaded",
-        description: "Your certificate has been successfully uploaded.",
+        description: "Your certificate has been successfully uploaded and is pending verification.",
       });
       
-      // Reset the file input
+      // Reset the form
+      setFile(null);
+      setTitle('');
       const fileInput = document.getElementById('certificate-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
-    }, 1500);
+      
+      // Notify parent component
+      if (onUploadComplete) {
+        onUploadComplete();
+      }
+      
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast({
+        variant: "destructive",
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "An unexpected error occurred.",
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
   
   return (
     <div className="space-y-4">
+      <div className="grid w-full max-w-sm items-center gap-1.5">
+        <Label htmlFor="certificate-title">Certificate Title (Optional)</Label>
+        <Input
+          id="certificate-title"
+          type="text"
+          placeholder="e.g., JavaScript Certification"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+      </div>
+      
       <div className="grid w-full max-w-sm items-center gap-1.5">
         <Label htmlFor="certificate-upload">Upload Certificate</Label>
         <Input
