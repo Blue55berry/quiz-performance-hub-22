@@ -36,7 +36,9 @@ const Navbar = ({ userType, username }: NavbarProps) => {
                 <Button variant="outline" className="relative" onClick={() => setNotifications(0)}>
                   Notifications
                   {notifications > 0 && (
-                    <span className="notification-badge">{notifications}</span>
+                    <span className="absolute -top-1 -right-1 h-5 w-5 text-xs flex items-center justify-center bg-quiz-success text-white rounded-full">
+                      {notifications}
+                    </span>
                   )}
                 </Button>
               </div>
