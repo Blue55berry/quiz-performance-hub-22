@@ -1,14 +1,34 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/common/Navbar';
 import LanguageSelector from '@/components/StudentComponents/LanguageSelector';
 import CertificateUploader from '@/components/StudentComponents/CertificateUploader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/use-toast";
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState('John Doe');
+  const { toast } = useToast();
+  const [username, setUsername] = useState('');
+  
+  useEffect(() => {
+    // Check if student is logged in
+    const studentName = localStorage.getItem('studentName');
+    const studentId = localStorage.getItem('studentId');
+    
+    if (!studentId || !studentName) {
+      toast({
+        variant: "destructive",
+        title: "Authentication required",
+        description: "Please login to access the student dashboard.",
+      });
+      navigate('/student/login');
+      return;
+    }
+    
+    setUsername(studentName);
+  }, [navigate, toast]);
   
   const handleSelectLanguage = (language: string) => {
     localStorage.setItem('selectedLanguage', language);
