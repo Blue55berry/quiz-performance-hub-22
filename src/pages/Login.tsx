@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -15,8 +16,8 @@ import { z } from "zod";
 import { Mail, User, Lock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-// Type definition for Student with the new fields
-interface Student {
+// Extended student type to include the new fields
+interface ExtendedStudent {
   id: string;
   name: string;
   email: string;
@@ -24,7 +25,7 @@ interface Student {
   password: string;
   created_at: string;
   updated_at: string;
-  verified_email?: boolean;
+  verified_email: boolean;
   verification_token?: string;
 }
 
@@ -104,8 +105,11 @@ const Login = () => {
         return;
       }
 
+      // Cast student to get access to the verified_email property
+      const extendedStudent = student as unknown as ExtendedStudent;
+
       // Check if email is verified
-      if (student.verified_email === false) {
+      if (extendedStudent.verified_email === false) {
         toast({
           variant: "destructive",
           title: "Email not verified",
@@ -198,17 +202,20 @@ const Login = () => {
       const verificationToken = Math.random().toString(36).substring(2, 15) + 
                                Math.random().toString(36).substring(2, 15);
       
-      // Insert new student with the new fields
+      // Insert new student with verification fields
+      // We need to cast our insert data to any to handle the type mismatch
+      const studentData: any = {
+        name: values.name,
+        email: values.email,
+        roll_number: values.rollNumber,
+        password: values.password,
+        verified_email: false,
+        verification_token: verificationToken
+      };
+      
       const { data: newStudent, error: insertError } = await supabase
         .from('students')
-        .insert([{
-          name: values.name,
-          email: values.email,
-          roll_number: values.rollNumber,
-          password: values.password,
-          verified_email: false,
-          verification_token: verificationToken
-        }])
+        .insert([studentData])
         .select()
         .single();
         
@@ -263,13 +270,15 @@ const Login = () => {
         return;
       }
       
-      // Update student to verified
+      // Update student to verified using type assertion to handle new fields
+      const updateData: any = { 
+        verified_email: true,
+        verification_token: null // Clear the token after use
+      };
+      
       const { error: updateError } = await supabase
         .from('students')
-        .update({ 
-          verified_email: true,
-          verification_token: null // Clear the token after use
-        })
+        .update(updateData)
         .eq('id', student.id);
         
       if (updateError) {
