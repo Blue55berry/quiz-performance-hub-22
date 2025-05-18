@@ -45,12 +45,18 @@ const CertificateUploader = ({ studentId, onUploadComplete }: CertificateUploade
     setIsUploading(true);
     
     try {
+      // Check file size limit (5MB)
+      const fileSizeMB = file.size / (1024 * 1024);
+      if (fileSizeMB > 5) {
+        throw new Error("File size exceeds the 5MB limit");
+      }
+      
       // Upload file to Supabase Storage
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}`;
       const filePath = `${fileName}.${fileExt}`;
       
-      // First check if certificates bucket exists, if not this will fail gracefully
+      // Upload to the certificates bucket
       const { data: uploadData, error: uploadError } = await supabase
         .storage
         .from('certificates')
