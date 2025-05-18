@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -15,6 +14,19 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Mail, User, Lock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+
+// Type definition for Student with the new fields
+interface Student {
+  id: string;
+  name: string;
+  email: string;
+  roll_number: string;
+  password: string;
+  created_at: string;
+  updated_at: string;
+  verified_email?: boolean;
+  verification_token?: string;
+}
 
 // Form schemas
 const studentLoginSchema = z.object({
@@ -93,7 +105,7 @@ const Login = () => {
       }
 
       // Check if email is verified
-      if (!student.verified_email) {
+      if (student.verified_email === false) {
         toast({
           variant: "destructive",
           title: "Email not verified",
@@ -186,7 +198,7 @@ const Login = () => {
       const verificationToken = Math.random().toString(36).substring(2, 15) + 
                                Math.random().toString(36).substring(2, 15);
       
-      // Insert new student
+      // Insert new student with the new fields
       const { data: newStudent, error: insertError } = await supabase
         .from('students')
         .insert([{
