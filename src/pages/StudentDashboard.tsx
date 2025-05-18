@@ -9,12 +9,22 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+interface Certificate {
+  id: string;
+  student_id: string;
+  title: string | null;
+  file_url: string | null;
+  file_path: string | null;
+  verified: boolean;
+  created_at: string;
+}
+
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [username, setUsername] = useState('');
   const [studentId, setStudentId] = useState<string | null>(null);
-  const [certificates, setCertificates] = useState<any[]>([]);
+  const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
@@ -41,7 +51,7 @@ const StudentDashboard = () => {
         const { data, error } = await supabase
           .from('certificates')
           .select('*')
-          .eq('student_id', storedStudentId);
+          .eq('student_id', storedStudentId) as { data: Certificate[] | null, error: any };
           
         if (error) throw error;
         
@@ -61,20 +71,24 @@ const StudentDashboard = () => {
     navigate('/student/quiz');
   };
 
-  const handleCertificateUploaded = () => {
+  const handleCertificateUploaded = async () => {
     // Refresh certificates list when a new one is uploaded
     if (studentId) {
       setIsLoading(true);
-      supabase
-        .from('certificates')
-        .select('*')
-        .eq('student_id', studentId)
-        .then(({ data, error }) => {
-          if (!error && data) {
-            setCertificates(data);
-          }
-          setIsLoading(false);
-        });
+      try {
+        const { data, error } = await supabase
+          .from('certificates')
+          .select('*')
+          .eq('student_id', studentId) as { data: Certificate[] | null, error: any };
+        
+        if (!error && data) {
+          setCertificates(data);
+        }
+      } catch (error) {
+        console.error('Error fetching certificates:', error);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 

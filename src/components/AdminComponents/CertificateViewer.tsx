@@ -8,8 +8,8 @@ import { supabase } from '@/integrations/supabase/client';
 interface Certificate {
   id: string;
   student_id: string;
-  title: string;
-  file_url: string;
+  title: string | null;
+  file_url: string | null;
   verified: boolean;
   created_at: string;
   studentName?: string;
@@ -28,15 +28,15 @@ const CertificateViewer = () => {
   const fetchCertificates = async () => {
     setIsLoading(true);
     try {
-      // Fetch certificates from database
-      const { data, error } = await supabase
+      // Fetch certificates directly with any type since TypeScript doesn't know about the certificates table yet
+      const { data: certificateData, error } = await supabase
         .from('certificates')
-        .select('*');
+        .select('*') as { data: Certificate[] | null, error: any };
       
       if (error) throw error;
       
       // For each certificate, we need to get the student name
-      const certificatesWithStudentNames = await Promise.all((data || []).map(async (cert) => {
+      const certificatesWithStudentNames = await Promise.all((certificateData || []).map(async (cert) => {
         const { data: studentData } = await supabase
           .from('students')
           .select('name')
@@ -68,10 +68,11 @@ const CertificateViewer = () => {
   
   const handleVerifyCertificate = async (certId: string) => {
     try {
+      // Use any type since TypeScript doesn't know about the certificates table yet
       const { error } = await supabase
         .from('certificates')
         .update({ verified: true })
-        .eq('id', certId);
+        .eq('id', certId) as { error: any };
         
       if (error) throw error;
       

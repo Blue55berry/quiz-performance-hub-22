@@ -9,6 +9,47 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      certificates: {
+        Row: {
+          created_at: string
+          file_path: string | null
+          file_url: string | null
+          id: string
+          student_id: string
+          title: string | null
+          updated_at: string
+          verified: boolean
+        }
+        Insert: {
+          created_at?: string
+          file_path?: string | null
+          file_url?: string | null
+          id?: string
+          student_id: string
+          title?: string | null
+          updated_at?: string
+          verified?: boolean
+        }
+        Update: {
+          created_at?: string
+          file_path?: string | null
+          file_url?: string | null
+          id?: string
+          student_id?: string
+          title?: string | null
+          updated_at?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificates_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
           created_at: string
