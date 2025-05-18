@@ -28,7 +28,7 @@ const CertificateViewer = () => {
   const fetchCertificates = async () => {
     setIsLoading(true);
     try {
-      // Fetch certificates directly with any type since TypeScript doesn't know about the certificates table yet
+      // Fetch certificates
       const { data: certificateData, error } = await supabase
         .from('certificates')
         .select('*') as { data: Certificate[] | null, error: any };
@@ -68,11 +68,10 @@ const CertificateViewer = () => {
   
   const handleVerifyCertificate = async (certId: string) => {
     try {
-      // Use any type since TypeScript doesn't know about the certificates table yet
       const { error } = await supabase
         .from('certificates')
-        .update({ verified: true })
-        .eq('id', certId) as { error: any };
+        .update({ verified: true } as any)
+        .eq('id', certId);
         
       if (error) throw error;
       

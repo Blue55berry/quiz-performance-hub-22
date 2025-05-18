@@ -66,7 +66,7 @@ const CertificateUploader = ({ studentId, onUploadComplete }: CertificateUploade
         .from('certificates')
         .getPublicUrl(filePath);
       
-      // Save certificate record in database using any type since TypeScript doesn't know about certificates table yet
+      // Save certificate record in database
       const { error: dbError } = await supabase
         .from('certificates')
         .insert([
@@ -77,7 +77,7 @@ const CertificateUploader = ({ studentId, onUploadComplete }: CertificateUploade
             file_path: filePath,
             verified: false
           }
-        ]) as { error: any };
+        ] as any);
       
       if (dbError) {
         throw new Error(`Database error: ${dbError.message}`);
