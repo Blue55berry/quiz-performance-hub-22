@@ -1,31 +1,154 @@
 
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '@/components/common/Navbar';
 import { Button } from "@/components/ui/button";
+import { supabase } from '@/integrations/supabase/client';
+import { Award, FileCheck } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 const CertificateView = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [certificateData, setCertificateData] = useState({
-    name: "John Doe",
-    course: "JavaScript Quiz Mastery",
-    score: "85%",
-    date: "May 17, 2025",
-    id: id || "12345"
+    name: "",
+    course: "",
+    score: "",
+    date: "",
+    id: id || ""
   });
   
   useEffect(() => {
-    // Simulate loading certificate data
-    setTimeout(() => {
+    // Check if we have certificate data passed via location state
+    if (location.state) {
+      const { studentName, language, score, date } = location.state as any;
+      
+      setCertificateData({
+        name: studentName || "Student",
+        course: `${language} Quiz Mastery`,
+        score: `${score}%`,
+        date: date || new Date().toLocaleDateString(),
+        id: id || Date.now().toString()
+      });
+      
       setIsLoading(false);
-    }, 1000);
-  }, []);
+    } else {
+      // If no data passed through state, try to fetch it
+      const fetchCertificateData = async () => {
+        try {
+          setIsLoading(true);
+          // Get current user info
+          const studentName = localStorage.getItem('studentName');
+          const studentId = localStorage.getItem('studentId');
+          
+          if (!studentName || !studentId) {
+            toast({
+              variant: "destructive",
+              title: "Authentication required",
+              description: "Please login to view certificates.",
+            });
+            navigate('/login');
+            return;
+          }
+          
+          // Try to fetch quiz completion data
+          const { data, error } = await supabase
+            .from('quiz_completions')
+            .select('*')
+            .eq('student_id', studentId)
+            .order('completed_at', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching certificate data:', error);
+            // Use placeholder data if we can't fetch the real data
+            setCertificateData({
+              name: studentName,
+              course: "Quiz Completion",
+              score: "N/A",
+              date: new Date().toLocaleDateString(),
+              id: id || "N/A"
+            });
+          } else if (data) {
+            setCertificateData({
+              name: studentName,
+              course: data.quiz_name,
+              score: `${data.score}%`,
+              date: new Date(data.completed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+              id: id || data.id
+            });
+          }
+        } catch (error) {
+          console.error('Error:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      fetchCertificateData();
+    }
+  }, [id, navigate, location.state, toast]);
   
   const handleDownload = () => {
     // In a real app, this would generate a PDF
-    alert("Certificate download started");
+    toast({
+      title: "Certificate download started",
+      description: "Your certificate is being prepared for download."
+    });
+  };
+
+  const handleSaveCertificate = async () => {
+    try {
+      setIsGenerating(true);
+      const studentId = localStorage.getItem('studentId');
+      
+      if (!studentId) {
+        toast({
+          variant: "destructive",
+          title: "Authentication required",
+          description: "Please login to save certificates.",
+        });
+        navigate('/login');
+        return;
+      }
+      
+      // In a real app, we'd generate a PDF and save its URL
+      // For now, we'll just save the certificate metadata
+      const { error } = await supabase
+        .from('certificates')
+        .insert({
+          student_id: studentId,
+          title: certificateData.course,
+          file_url: null, // In a real app, this would be the URL to the generated PDF
+          verified: false
+        });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "Certificate saved",
+        description: "Your certificate has been saved to your account.",
+      });
+      
+      // Redirect to student dashboard after a short delay
+      setTimeout(() => {
+        navigate('/student/dashboard');
+      }, 2000);
+    } catch (error) {
+      console.error('Error saving certificate:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to save certificate. Please try again.",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
   
   const handleBack = () => {
@@ -59,6 +182,9 @@ const CertificateView = () => {
           <div className="space-x-2">
             <Button variant="outline" onClick={handleBack}>Back to Dashboard</Button>
             <Button onClick={handleDownload}>Download PDF</Button>
+            <Button onClick={handleSaveCertificate} disabled={isGenerating}>
+              {isGenerating ? "Saving..." : "Save to My Certificates"}
+            </Button>
           </div>
         </div>
         
@@ -69,6 +195,9 @@ const CertificateView = () => {
             <div className="absolute bottom-0 right-0 w-24 h-24 border-b-4 border-r-4 border-primary opacity-30"></div>
             
             <div className="mb-6">
+              <div className="flex justify-center mb-2">
+                <Award className="h-12 w-12 text-primary"/>
+              </div>
               <h2 className="text-3xl font-bold text-primary mb-1">Certificate of Completion</h2>
               <p className="text-gray-500">Quiz Performance Hub</p>
             </div>

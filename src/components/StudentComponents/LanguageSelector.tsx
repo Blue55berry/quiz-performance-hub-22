@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { Code } from "lucide-react";
 
 interface LanguageOption {
   id: string;
@@ -12,7 +13,7 @@ interface LanguageOption {
 }
 
 interface LanguageSelectorProps {
-  onSelectLanguage: (language: string) => void;
+  onSelectLanguage: (language: string, languageName: string) => void;
 }
 
 const LanguageSelector = ({ onSelectLanguage }: LanguageSelectorProps) => {
@@ -32,11 +33,13 @@ const LanguageSelector = ({ onSelectLanguage }: LanguageSelectorProps) => {
 
   const handleConfirm = () => {
     if (selectedLanguage) {
+      const selectedLang = languages.find(lang => lang.id === selectedLanguage);
       toast({
         title: "Language selected",
-        description: `You've selected ${selectedLanguage}. Good luck with your quiz!`,
+        description: `You've selected ${selectedLang?.name}. Good luck with your quiz!`,
       });
-      onSelectLanguage(selectedLanguage);
+      // Pass both language id and display name
+      onSelectLanguage(selectedLanguage, selectedLang?.name || selectedLanguage);
     }
   };
 
@@ -71,6 +74,7 @@ const LanguageSelector = ({ onSelectLanguage }: LanguageSelectorProps) => {
           size="lg"
           className="px-8"
         >
+          <Code className="mr-2 h-4 w-4" />
           Start Quiz
         </Button>
       </div>

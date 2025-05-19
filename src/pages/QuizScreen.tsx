@@ -5,7 +5,8 @@ import Navbar from '@/components/common/Navbar';
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from '@/integrations/supabase/client';
+import { FileCheck } from "lucide-react";
 
 interface MCQOption {
   id: string;
@@ -14,6 +15,7 @@ interface MCQOption {
 
 interface MCQuestion {
   id: number;
+  language: string;
   text: string;
   options: MCQOption[];
   correctAnswer: string;
@@ -21,6 +23,7 @@ interface MCQuestion {
 
 interface CodingQuestion {
   id: number;
+  language: string;
   text: string;
   starterCode: string;
   testCases: string;
@@ -30,16 +33,22 @@ const QuizScreen = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [selectedLanguage, setSelectedLanguage] = useState<string>('javascript');
+  const [selectedLanguageName, setSelectedLanguageName] = useState<string>('JavaScript');
+  const [studentName, setStudentName] = useState<string>('');
+  const [studentId, setStudentId] = useState<string | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, string>>({});
   const [codingAnswers, setCodingAnswers] = useState<Record<number, string>>({});
   const [quizType, setQuizType] = useState<'mcq' | 'coding'>('mcq');
   const [progress, setProgress] = useState(0);
+  const [score, setScore] = useState(0);
   
-  // Sample MCQ questions
-  const mcqQuestions: MCQuestion[] = [
+  // All questions organized by language
+  const allMCQuestions: MCQuestion[] = [
+    // JavaScript Questions
     {
       id: 1,
+      language: 'javascript',
       text: "What is the output of console.log(typeof null) in JavaScript?",
       options: [
         { id: "a", text: "null" },
@@ -51,6 +60,7 @@ const QuizScreen = () => {
     },
     {
       id: 2,
+      language: 'javascript',
       text: "Which of the following is not a JavaScript data type?",
       options: [
         { id: "a", text: "String" },
@@ -62,6 +72,7 @@ const QuizScreen = () => {
     },
     {
       id: 3,
+      language: 'javascript',
       text: "What is the correct way to declare a JavaScript variable?",
       options: [
         { id: "a", text: "variable x;" },
@@ -70,42 +81,209 @@ const QuizScreen = () => {
         { id: "d", text: "x = var;" }
       ],
       correctAnswer: "b"
+    },
+    // Python Questions
+    {
+      id: 4,
+      language: 'python',
+      text: "What is the output of print(type(None)) in Python?",
+      options: [
+        { id: "a", text: "NoneType" },
+        { id: "b", text: "null" },
+        { id: "c", text: "undefined" },
+        { id: "d", text: "void" }
+      ],
+      correctAnswer: "a"
+    },
+    {
+      id: 5,
+      language: 'python',
+      text: "Which of these is not a valid Python data type?",
+      options: [
+        { id: "a", text: "list" },
+        { id: "b", text: "dictionary" },
+        { id: "c", text: "array" },
+        { id: "d", text: "tuple" }
+      ],
+      correctAnswer: "c"
+    },
+    {
+      id: 6,
+      language: 'python',
+      text: "How do you declare a variable in Python?",
+      options: [
+        { id: "a", text: "var x = 5" },
+        { id: "b", text: "dim x as integer = 5" },
+        { id: "c", text: "x = 5" },
+        { id: "d", text: "let x = 5" }
+      ],
+      correctAnswer: "c"
+    },
+    // Java Questions
+    {
+      id: 7,
+      language: 'java',
+      text: "Which of these is not a Java primitive data type?",
+      options: [
+        { id: "a", text: "int" },
+        { id: "b", text: "String" },
+        { id: "c", text: "boolean" },
+        { id: "d", text: "char" }
+      ],
+      correctAnswer: "b"
+    },
+    {
+      id: 8,
+      language: 'java',
+      text: "What is the correct way to declare a constant in Java?",
+      options: [
+        { id: "a", text: "var PI = 3.14159;" },
+        { id: "b", text: "const PI = 3.14159;" },
+        { id: "c", text: "final double PI = 3.14159;" },
+        { id: "d", text: "#define PI 3.14159" }
+      ],
+      correctAnswer: "c"
+    },
+    {
+      id: 9,
+      language: 'java',
+      text: "In Java, which keyword is used to inherit a class?",
+      options: [
+        { id: "a", text: "implements" },
+        { id: "b", text: "extends" },
+        { id: "c", text: "inherits" },
+        { id: "d", text: "using" }
+      ],
+      correctAnswer: "b"
+    },
+    // C# Questions
+    {
+      id: 10,
+      language: 'csharp',
+      text: "What is the correct way to declare a read-only field in C#?",
+      options: [
+        { id: "a", text: "static int x = 5;" },
+        { id: "b", text: "readonly int x = 5;" },
+        { id: "c", text: "final int x = 5;" },
+        { id: "d", text: "const int x = 5;" }
+      ],
+      correctAnswer: "b"
+    },
+    {
+      id: 11,
+      language: 'csharp',
+      text: "Which of the following is NOT a valid C# access modifier?",
+      options: [
+        { id: "a", text: "public" },
+        { id: "b", text: "private" },
+        { id: "c", text: "protected" },
+        { id: "d", text: "friend" }
+      ],
+      correctAnswer: "d"
+    },
+    {
+      id: 12,
+      language: 'csharp',
+      text: "What does the 'var' keyword do in C#?",
+      options: [
+        { id: "a", text: "Creates a late-bound variable" },
+        { id: "b", text: "Creates a variant type that can hold any value" },
+        { id: "c", text: "Lets the compiler infer the type of the variable" },
+        { id: "d", text: "Declares a dynamic variable" }
+      ],
+      correctAnswer: "c"
     }
   ];
   
-  // Sample coding questions
-  const codingQuestions: CodingQuestion[] = [
+  // All coding questions organized by language
+  const allCodingQuestions: CodingQuestion[] = [
+    // JavaScript coding questions
     {
       id: 1,
+      language: 'javascript',
       text: "Write a function that returns the sum of two numbers.",
       starterCode: "function sum(a, b) {\n  // Your code here\n}",
       testCases: "sum(1, 2) === 3\nsum(-1, 1) === 0"
     },
     {
       id: 2,
+      language: 'javascript',
       text: "Write a function that checks if a string is a palindrome.",
       starterCode: "function isPalindrome(str) {\n  // Your code here\n}",
       testCases: "isPalindrome('racecar') === true\nisPalindrome('hello') === false"
     },
+    // Python coding questions
     {
       id: 3,
-      text: "Implement a function that returns the factorial of a number.",
-      starterCode: "function factorial(n) {\n  // Your code here\n}",
-      testCases: "factorial(5) === 120\nfactorial(0) === 1"
+      language: 'python',
+      text: "Write a function to check if a number is prime.",
+      starterCode: "def is_prime(n):\n    # Your code here\n    pass",
+      testCases: "is_prime(7) == True\nis_prime(4) == False"
     },
     {
       id: 4,
-      text: "Write a function to reverse an array without using the built-in reverse method.",
-      starterCode: "function reverseArray(arr) {\n  // Your code here\n}",
-      testCases: "reverseArray([1,2,3,4]) deep equals [4,3,2,1]"
+      language: 'python',
+      text: "Write a function that returns the factorial of a number.",
+      starterCode: "def factorial(n):\n    # Your code here\n    pass",
+      testCases: "factorial(5) == 120\nfactorial(0) == 1"
+    },
+    // Java coding questions
+    {
+      id: 5,
+      language: 'java',
+      text: "Create a method to find the largest element in an array.",
+      starterCode: "public class Solution {\n    public static int findMax(int[] array) {\n        // Your code here\n    }\n}",
+      testCases: "findMax([1, 3, 5, 7, 2]) returns 7\nfindMax([-1, -5, -2]) returns -1"
+    },
+    {
+      id: 6,
+      language: 'java',
+      text: "Write a method to check if a string contains only digits.",
+      starterCode: "public class Solution {\n    public static boolean containsOnlyDigits(String str) {\n        // Your code here\n    }\n}",
+      testCases: 'containsOnlyDigits("12345") returns true\ncontainsOnlyDigits("123a") returns false'
+    },
+    // C# coding questions
+    {
+      id: 7,
+      language: 'csharp',
+      text: "Write a method to reverse a string without using the built-in Reverse method.",
+      starterCode: "public class Solution {\n    public static string ReverseString(string input) {\n        // Your code here\n    }\n}",
+      testCases: 'ReverseString("hello") returns "olleh"\nReverseString("C#") returns "#C"'
+    },
+    {
+      id: 8,
+      language: 'csharp',
+      text: "Write a method to find all even numbers in a list.",
+      starterCode: "public class Solution {\n    public static List<int> FindEvenNumbers(List<int> numbers) {\n        // Your code here\n    }\n}",
+      testCases: "FindEvenNumbers([1, 2, 3, 4, 5]) returns [2, 4]\nFindEvenNumbers([7, 9, 11]) returns []"
     }
   ];
+
+  // Filter questions based on selected language
+  const mcqQuestions = allMCQuestions.filter(q => q.language === selectedLanguage);
+  const codingQuestions = allCodingQuestions.filter(q => q.language === selectedLanguage);
   
   useEffect(() => {
     // Get the selected language from localStorage
     const lang = localStorage.getItem('selectedLanguage');
+    const langName = localStorage.getItem('selectedLanguageName');
+    const name = localStorage.getItem('studentName');
+    const id = localStorage.getItem('studentId');
+    
     if (lang) {
       setSelectedLanguage(lang);
+    }
+    
+    if (langName) {
+      setSelectedLanguageName(langName);
+    }
+
+    if (name) {
+      setStudentName(name);
+    }
+
+    if (id) {
+      setStudentId(id);
     }
     
     // Calculate progress based on the quiz type and current question
@@ -114,7 +292,7 @@ const QuizScreen = () => {
     } else {
       setProgress(50 + ((currentQuestionIndex + 1) / codingQuestions.length) * 50);
     }
-  }, [currentQuestionIndex, quizType]);
+  }, [currentQuestionIndex, quizType, mcqQuestions.length, codingQuestions.length]);
   
   const handleMCQSelection = (questionId: number, optionId: string) => {
     setSelectedAnswers({
@@ -128,6 +306,29 @@ const QuizScreen = () => {
       ...codingAnswers,
       [questionId]: code
     });
+  };
+
+  // Calculate score based on MCQ answers
+  const calculateScore = () => {
+    let correctAnswers = 0;
+    
+    // Check MCQ answers
+    mcqQuestions.forEach(question => {
+      if (selectedAnswers[question.id] === question.correctAnswer) {
+        correctAnswers++;
+      }
+    });
+    
+    // For coding questions, we'll give a default score since we can't evaluate code here
+    // In a real app, you'd have an actual code evaluation system
+    const codingScore = Object.keys(codingAnswers).length;
+    
+    // Calculate percentage
+    const totalQuestions = mcqQuestions.length + codingQuestions.length;
+    const percentage = Math.round(((correctAnswers + codingScore) / totalQuestions) * 100);
+    
+    setScore(percentage);
+    return percentage;
   };
   
   const handleNextQuestion = () => {
@@ -145,21 +346,47 @@ const QuizScreen = () => {
     }
   };
   
-  const handleQuizCompletion = () => {
+  const handleQuizCompletion = async () => {
+    const finalScore = calculateScore();
+    
     toast({
       title: "Quiz Completed!",
-      description: "Your answers have been submitted and are being processed.",
+      description: `Your score is ${finalScore}%. Your certificate is being generated.`,
     });
+
+    try {
+      // Save quiz completion in database
+      if (studentId) {
+        const { error } = await supabase.from('quiz_completions').insert({
+          student_id: studentId,
+          quiz_name: `${selectedLanguageName} Quiz`,
+          score: finalScore
+        });
+
+        if (error) {
+          console.error('Error saving quiz completion:', error);
+        }
+      }
+    } catch (err) {
+      console.error('Error in quiz completion:', err);
+    }
     
-    // Simulate certificate generation
-    setTimeout(() => {
-      navigate('/certificate/123');
-    }, 2000);
+    // Navigate to certificate page with necessary data
+    navigate(`/certificate/${selectedLanguage}`, { 
+      state: { 
+        score: finalScore,
+        language: selectedLanguageName,
+        studentName: studentName,
+        date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      } 
+    });
   };
   
   const renderQuestion = () => {
     if (quizType === 'mcq') {
       const question = mcqQuestions[currentQuestionIndex];
+      if (!question) return <p>No questions available for this language.</p>;
+      
       return (
         <div className="quiz-card">
           <h3 className="quiz-header">Question {currentQuestionIndex + 1}</h3>
@@ -169,7 +396,11 @@ const QuizScreen = () => {
             {question.options.map((option) => (
               <label 
                 key={option.id}
-                className={`quiz-option ${selectedAnswers[question.id] === option.id ? 'selected' : ''}`}
+                className={`flex items-center p-3 border rounded-md cursor-pointer transition-all ${
+                  selectedAnswers[question.id] === option.id 
+                    ? 'bg-primary/10 border-primary' 
+                    : 'hover:bg-gray-50'
+                }`}
               >
                 <input
                   type="radio"
@@ -177,6 +408,7 @@ const QuizScreen = () => {
                   value={option.id}
                   checked={selectedAnswers[question.id] === option.id}
                   onChange={() => handleMCQSelection(question.id, option.id)}
+                  className="mr-2"
                 />
                 <span className="font-medium">{option.id.toUpperCase()}.</span>
                 <span className="ml-2">{option.text}</span>
@@ -196,6 +428,8 @@ const QuizScreen = () => {
       );
     } else {
       const question = codingQuestions[currentQuestionIndex];
+      if (!question) return <p>No coding questions available for this language.</p>;
+      
       return (
         <div className="quiz-card">
           <h3 className="quiz-header">Coding Question {currentQuestionIndex + 1}</h3>
@@ -210,7 +444,7 @@ const QuizScreen = () => {
           
           <div>
             <textarea
-              className="code-editor"
+              className="w-full h-64 font-mono p-3 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               value={codingAnswers[question.id] || question.starterCode}
               onChange={(e) => handleCodingInput(question.id, e.target.value)}
             />
@@ -231,12 +465,12 @@ const QuizScreen = () => {
   
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <Navbar userType="student" />
+      <Navbar userType="student" username={studentName || 'Student'} />
       
       <main className="flex-1 container mx-auto p-4 md:p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2">
-            {selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1)} Quiz
+            {selectedLanguageName} Quiz
           </h1>
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium">

@@ -66,8 +66,9 @@ const StudentDashboard = () => {
     fetchCertificates();
   }, [navigate, toast]);
   
-  const handleSelectLanguage = (language: string) => {
+  const handleSelectLanguage = (language: string, languageName: string) => {
     localStorage.setItem('selectedLanguage', language);
+    localStorage.setItem('selectedLanguageName', languageName);
     navigate('/student/quiz');
   };
 
