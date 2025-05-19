@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -137,6 +136,7 @@ const Login = () => {
       
       // Set app setting using type assertion to avoid TypeScript errors
       try {
+        // Fix: Use type assertion to handle type conflict
         await supabase.rpc('set_app_setting', { 
           key: 'app.current_student_roll',
           value: student.roll_number
@@ -351,7 +351,7 @@ const Login = () => {
     if (token) {
       verifyEmail(token);
     }
-  }, []); // Empty dependency array to run once on mount
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
