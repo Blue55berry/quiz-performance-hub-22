@@ -50,6 +50,38 @@ export type Database = {
           },
         ]
       }
+      quiz_completions: {
+        Row: {
+          completed_at: string
+          id: string
+          quiz_name: string
+          score: number
+          student_id: string
+        }
+        Insert: {
+          completed_at?: string
+          id?: string
+          quiz_name: string
+          score: number
+          student_id: string
+        }
+        Update: {
+          completed_at?: string
+          id?: string
+          quiz_name?: string
+          score?: number
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_completions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
           created_at: string

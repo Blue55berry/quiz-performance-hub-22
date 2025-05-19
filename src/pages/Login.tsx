@@ -127,10 +127,11 @@ const Login = () => {
       localStorage.setItem('currentUserType', 'student');
       
       // Set the app.current_student_roll setting for RLS policies
+      // Fix Type Error: Using void type to avoid 'never' type error
       await supabase.rpc('set_app_setting', { 
-        key: 'app.current_student_roll',
+        key: 'app.current_student_roll' as string,
         value: student.roll_number
-      });
+      } as any);
       
       toast({
         title: "Login successful",
