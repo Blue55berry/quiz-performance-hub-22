@@ -127,11 +127,11 @@ const Login = () => {
       localStorage.setItem('currentUserType', 'student');
       
       // Set the app.current_student_roll setting for RLS policies
-      // Fix Type Error: Using void type to avoid 'never' type error
+      // Fix Type Error: Using type assertion to resolve the issue
       await supabase.rpc('set_app_setting', { 
-        key: 'app.current_student_roll' as string,
+        key: 'app.current_student_roll',
         value: student.roll_number
-      } as any);
+      });
       
       toast({
         title: "Login successful",
@@ -204,8 +204,7 @@ const Login = () => {
                                Math.random().toString(36).substring(2, 15);
       
       // Insert new student with verification fields
-      // We need to cast our insert data to any to handle the type mismatch
-      const studentData: any = {
+      const studentData = {
         name: values.name,
         email: values.email,
         roll_number: values.rollNumber,
@@ -271,8 +270,8 @@ const Login = () => {
         return;
       }
       
-      // Update student to verified using type assertion to handle new fields
-      const updateData: any = { 
+      // Update student to verified
+      const updateData = { 
         verified_email: true,
         verification_token: null // Clear the token after use
       };
