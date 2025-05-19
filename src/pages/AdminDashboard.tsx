@@ -4,6 +4,7 @@ import Navbar from '@/components/common/Navbar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import StudentList from '@/components/AdminComponents/StudentList';
+import StudentPerformanceList from '@/components/AdminComponents/StudentPerformanceList';
 import PerformanceChart from '@/components/AdminComponents/PerformanceChart';
 import CertificateViewer from '@/components/AdminComponents/CertificateViewer';
 import { supabase } from '@/integrations/supabase/client';
@@ -202,14 +203,19 @@ const AdminDashboard = () => {
         </div>
         
         <Tabs defaultValue="students" className="w-full">
-          <TabsList className="grid grid-cols-3 mb-4">
+          <TabsList className="grid grid-cols-4 mb-4">
             <TabsTrigger value="students">Student Management</TabsTrigger>
+            <TabsTrigger value="performance">Student Performance</TabsTrigger>
             <TabsTrigger value="analytics">Performance Analytics</TabsTrigger>
             <TabsTrigger value="certificates">Certificates</TabsTrigger>
           </TabsList>
           
           <TabsContent value="students">
             <StudentList />
+          </TabsContent>
+          
+          <TabsContent value="performance">
+            <StudentPerformanceList />
           </TabsContent>
           
           <TabsContent value="analytics">

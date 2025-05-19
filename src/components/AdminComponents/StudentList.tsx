@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -24,10 +25,18 @@ const formSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters")
 });
 
+const updateFormSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Please enter a valid email"),
+  roll_number: z.string().min(1, "Roll number is required"),
+});
+
 const StudentList = () => {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [isEditingStudent, setIsEditingStudent] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [students, setStudents] = useState<Student[]>([]);
   
@@ -38,6 +47,15 @@ const StudentList = () => {
       email: '',
       roll_number: '',
       password: ''
+    }
+  });
+  
+  const updateForm = useForm<z.infer<typeof updateFormSchema>>({
+    resolver: zodResolver(updateFormSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      roll_number: ''
     }
   });
 
@@ -107,6 +125,61 @@ const StudentList = () => {
         variant: "destructive",
         title: "Error",
         description: error.message || "Failed to add student. Please try again.",
+      });
+    }
+  };
+  
+  const handleEditStudent = (student: Student) => {
+    setEditingStudent(student);
+    updateForm.reset({
+      name: student.name,
+      email: student.email,
+      roll_number: student.roll_number
+    });
+    setIsEditingStudent(true);
+  };
+  
+  const handleUpdateStudent = async (values: z.infer<typeof updateFormSchema>) => {
+    if (!editingStudent) return;
+    
+    try {
+      const { error } = await supabase
+        .from('students')
+        .update({ 
+          name: values.name, 
+          email: values.email, 
+          roll_number: values.roll_number
+        })
+        .eq('id', editingStudent.id);
+      
+      if (error) {
+        if (error.code === '23505') { // Unique constraint violation
+          if (error.message.includes('email')) {
+            updateForm.setError('email', { message: 'Email already exists' });
+          } else if (error.message.includes('roll_number')) {
+            updateForm.setError('roll_number', { message: 'Roll number already exists' });
+          }
+          throw new Error('Student with these details already exists');
+        }
+        throw error;
+      }
+      
+      updateForm.reset();
+      setIsEditingStudent(false);
+      setEditingStudent(null);
+      toast({
+        title: "Student updated",
+        description: `${values.name}'s information has been successfully updated.`,
+      });
+      
+      // Refresh student list
+      fetchStudents();
+    } catch (error: any) {
+      console.error('Error updating student:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update student. Please try again.",
       });
     }
   };
@@ -230,6 +303,63 @@ const StudentList = () => {
         </div>
       )}
       
+      {/* Edit Student Dialog */}
+      <Dialog open={isEditingStudent} onOpenChange={setIsEditingStudent}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Student</DialogTitle>
+          </DialogHeader>
+          <Form {...updateForm}>
+            <form onSubmit={updateForm.handleSubmit(handleUpdateStudent)} className="space-y-4">
+              <div className="grid gap-4">
+                <FormField
+                  control={updateForm.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="John Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={updateForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email Address</FormLabel>
+                      <FormControl>
+                        <Input placeholder="john@example.com" type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={updateForm.control}
+                  name="roll_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Roll Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="A12345" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <DialogFooter>
+                <Button type="submit">Save Changes</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      
       <div className="bg-white rounded-md shadow">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -255,14 +385,24 @@ const StudentList = () => {
                     <td className="px-4 py-3 text-sm">{student.email}</td>
                     <td className="px-4 py-3 text-sm">{student.roll_number}</td>
                     <td className="px-4 py-3 text-right">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => handleDeleteStudent(student.id)}
-                      >
-                        Delete
-                      </Button>
+                      <div className="flex justify-end space-x-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="hover:bg-blue-50"
+                          onClick={() => handleEditStudent(student)}
+                        >
+                          Edit
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteStudent(student.id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))
