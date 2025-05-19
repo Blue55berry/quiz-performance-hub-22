@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 
 interface StudentPerformance {
   id: string;
@@ -85,10 +86,13 @@ const StudentPerformanceList = () => {
         };
       });
       
-      // Sort by average score in descending order
-      performanceList.sort((a, b) => b.avgScore - a.avgScore);
+      // Filter to only show students with 80% or higher average scores
+      const highPerformers = performanceList.filter(student => student.avgScore >= 80);
       
-      setPerformanceData(performanceList);
+      // Sort by average score in descending order
+      highPerformers.sort((a, b) => b.avgScore - a.avgScore);
+      
+      setPerformanceData(highPerformers);
     } catch (error) {
       console.error('Error fetching performance data:', error);
       toast({
@@ -103,13 +107,13 @@ const StudentPerformanceList = () => {
   
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-semibold">Student Performance Rankings</h3>
+      <h3 className="text-xl font-semibold">Top Performing Students (80%+ Average)</h3>
       
       {isLoading ? (
         <div className="text-center py-4">Loading performance data...</div>
       ) : (
         <Table>
-          <TableCaption>Student performance ranked by average score</TableCaption>
+          <TableCaption>Student performance ranked by average score (80% and above)</TableCaption>
           <TableHeader>
             <TableRow>
               <TableHead>Rank</TableHead>
@@ -117,6 +121,7 @@ const StudentPerformanceList = () => {
               <TableHead>Roll Number</TableHead>
               <TableHead>Average Score</TableHead>
               <TableHead>Quizzes Completed</TableHead>
+              <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -128,18 +133,23 @@ const StudentPerformanceList = () => {
                   <TableCell>{student.roll_number}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      student.avgScore >= 70 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      student.avgScore >= 90 ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
                     }`}>
                       {student.avgScore}%
                     </span>
                   </TableCell>
                   <TableCell>{student.completedQuizzes}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      Certificate Eligible
+                    </Badge>
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">
-                  No performance data available
+                <TableCell colSpan={6} className="text-center">
+                  No students have achieved 80% or higher average scores yet
                 </TableCell>
               </TableRow>
             )}

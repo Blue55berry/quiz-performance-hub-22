@@ -14,6 +14,7 @@ const CertificateView = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showDownloadToast, setShowDownloadToast] = useState(false);
   const [certificateData, setCertificateData] = useState({
     name: "",
     course: "",
@@ -96,6 +97,7 @@ const CertificateView = () => {
   
   const handleDownload = () => {
     // In a real app, this would generate a PDF
+    setShowDownloadToast(true);
     toast({
       title: "Certificate download started",
       description: "Your certificate is being prepared for download."
@@ -117,8 +119,19 @@ const CertificateView = () => {
         return;
       }
       
+      // Only allow saving certificates with a passing grade (≥80%)
+      const scoreNumber = parseInt(certificateData.score);
+      if (scoreNumber < 80) {
+        toast({
+          variant: "destructive",
+          title: "Certificate not available",
+          description: "Certificates are only generated for scores of 80% or higher.",
+        });
+        setIsGenerating(false);
+        return;
+      }
+      
       // In a real app, we'd generate a PDF and save its URL
-      // For now, we'll just save the certificate metadata
       const { error } = await supabase
         .from('certificates')
         .insert({
@@ -172,6 +185,10 @@ const CertificateView = () => {
     );
   }
   
+  // Parse the score to check if it's passing grade (≥80%)
+  const scoreValue = parseInt(certificateData.score);
+  const isPassingGrade = !isNaN(scoreValue) && scoreValue >= 80;
+  
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Navbar userType="student" username={certificateData.name} />
@@ -181,51 +198,79 @@ const CertificateView = () => {
           <h1 className="text-2xl font-bold">Your Certificate</h1>
           <div className="space-x-2">
             <Button variant="outline" onClick={handleBack}>Back to Dashboard</Button>
-            <Button onClick={handleDownload}>Download PDF</Button>
-            <Button onClick={handleSaveCertificate} disabled={isGenerating}>
+            <Button onClick={handleDownload} disabled={!isPassingGrade}>Download PDF</Button>
+            <Button onClick={handleSaveCertificate} disabled={isGenerating || !isPassingGrade}>
               {isGenerating ? "Saving..." : "Save to My Certificates"}
             </Button>
           </div>
         </div>
         
-        <div className="bg-white border-8 border-primary/20 rounded-lg p-8 mx-auto max-w-3xl shadow-lg">
-          <div className="text-center relative">
-            {/* Decorative element */}
-            <div className="absolute top-0 left-0 w-24 h-24 border-t-4 border-l-4 border-primary opacity-30"></div>
-            <div className="absolute bottom-0 right-0 w-24 h-24 border-b-4 border-r-4 border-primary opacity-30"></div>
-            
-            <div className="mb-6">
-              <div className="flex justify-center mb-2">
-                <Award className="h-12 w-12 text-primary"/>
-              </div>
-              <h2 className="text-3xl font-bold text-primary mb-1">Certificate of Completion</h2>
-              <p className="text-gray-500">Quiz Performance Hub</p>
+        {!isPassingGrade ? (
+          <div className="bg-white border border-red-200 rounded-lg p-8 mx-auto max-w-3xl shadow-lg text-center">
+            <div className="text-red-500 mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
             </div>
-            
-            <p className="mb-6 text-lg">This certifies that</p>
-            <h2 className="text-3xl font-bold mb-6 text-gray-800">{certificateData.name}</h2>
-            <p className="mb-8 text-lg">has successfully completed</p>
-            <h3 className="text-2xl font-bold mb-2 text-primary">{certificateData.course}</h3>
-            <p className="mb-8">with a score of <span className="font-bold">{certificateData.score}</span></p>
-            
-            <div className="mt-12 flex justify-between items-center">
-              <div className="text-left">
-                <p className="text-sm text-gray-500">Date</p>
-                <p className="font-semibold">{certificateData.date}</p>
+            <h2 className="text-2xl font-bold mb-4">Certificate Not Available</h2>
+            <p className="text-gray-600 mb-4">
+              Your score of {certificateData.score} does not meet the minimum requirement of 80% to earn a certificate.
+            </p>
+            <p className="mb-6">Please try the quiz again to improve your score.</p>
+            <Button onClick={handleBack}>Return to Dashboard</Button>
+          </div>
+        ) : (
+          <div className="bg-white border-8 border-primary/20 rounded-lg p-8 mx-auto max-w-3xl shadow-lg">
+            <div className="text-center relative">
+              {/* Decorative element */}
+              <div className="absolute top-0 left-0 w-24 h-24 border-t-4 border-l-4 border-primary opacity-30"></div>
+              <div className="absolute bottom-0 right-0 w-24 h-24 border-b-4 border-r-4 border-primary opacity-30"></div>
+              
+              <div className="mb-6">
+                <div className="flex justify-center mb-2">
+                  <Award className="h-12 w-12 text-primary"/>
+                </div>
+                <h2 className="text-3xl font-bold text-primary mb-1">Certificate of Completion</h2>
+                <p className="text-gray-500">Quiz Performance Hub</p>
               </div>
               
-              <div className="text-center">
-                <div className="h-px w-40 bg-gray-300 mx-auto mb-2"></div>
-                <p className="text-sm">Quiz Performance Hub</p>
-              </div>
+              <p className="mb-6 text-lg">This certifies that</p>
+              <h2 className="text-3xl font-bold mb-6 text-gray-800">{certificateData.name}</h2>
+              <p className="mb-8 text-lg">has successfully completed</p>
+              <h3 className="text-2xl font-bold mb-2 text-primary">{certificateData.course}</h3>
+              <p className="mb-8">with a score of <span className="font-bold">{certificateData.score}</span></p>
               
-              <div className="text-right">
-                <p className="text-sm text-gray-500">Certificate ID</p>
-                <p className="font-semibold">{certificateData.id}</p>
+              <div className="mt-12 flex justify-between items-center">
+                <div className="text-left">
+                  <p className="text-sm text-gray-500">Date</p>
+                  <p className="font-semibold">{certificateData.date}</p>
+                </div>
+                
+                <div className="text-center">
+                  <div className="h-px w-40 bg-gray-300 mx-auto mb-2"></div>
+                  <p className="text-sm">Quiz Performance Hub</p>
+                </div>
+                
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">Certificate ID</p>
+                  <p className="font-semibold">{certificateData.id}</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
+        
+        {showDownloadToast && (
+          <div className="fixed bottom-4 right-4 bg-white p-4 rounded-md shadow-lg max-w-md border border-gray-200 transition-all">
+            <div className="flex">
+              <FileCheck className="text-green-500 mr-3" />
+              <div>
+                <h4 className="font-semibold">Certificate download started</h4>
+                <p className="text-sm text-gray-600">Your certificate is being prepared for download.</p>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
