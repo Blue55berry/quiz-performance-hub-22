@@ -25,7 +25,7 @@ interface ExtendedStudent {
   password: string;
   created_at: string;
   updated_at: string;
-  verified_email: boolean;
+  verified_email?: boolean;
   verification_token?: string;
 }
 
@@ -127,10 +127,10 @@ const Login = () => {
       localStorage.setItem('currentUserType', 'student');
       
       // Set the app.current_student_roll setting for RLS policies
-      // Fix Type Error: Using type assertion to resolve the issue
+      // Fix Type Error: Using type assertion to avoid the never type error
       await supabase.rpc('set_app_setting', { 
-        key: 'app.current_student_roll',
-        value: student.roll_number
+        key: 'app.current_student_roll' as unknown as never,
+        value: student.roll_number as unknown as never
       });
       
       toast({
@@ -204,6 +204,7 @@ const Login = () => {
                                Math.random().toString(36).substring(2, 15);
       
       // Insert new student with verification fields
+      // Use type assertion to handle extended fields
       const studentData = {
         name: values.name,
         email: values.email,
@@ -211,7 +212,7 @@ const Login = () => {
         password: values.password,
         verified_email: false,
         verification_token: verificationToken
-      };
+      } as unknown as any;
       
       const { data: newStudent, error: insertError } = await supabase
         .from('students')
@@ -271,10 +272,11 @@ const Login = () => {
       }
       
       // Update student to verified
+      // Use type assertion for the update data
       const updateData = { 
         verified_email: true,
         verification_token: null // Clear the token after use
-      };
+      } as unknown as any;
       
       const { error: updateError } = await supabase
         .from('students')
