@@ -26,6 +26,7 @@ const StudentPerformanceList = () => {
   const { toast } = useToast();
   const [performanceData, setPerformanceData] = useState<StudentPerformance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<'highToLow' | 'lowToHigh'>('highToLow');
   
   useEffect(() => {
     fetchStudentPerformance();
@@ -73,26 +74,25 @@ const StudentPerformanceList = () => {
       });
       
       // Calculate average scores and format data
-      const performanceList = Array.from(studentMap.values()).map(student => {
-        const totalScore = student.scores.reduce((sum: number, score: number) => sum + score, 0);
-        const avgScore = student.scores.length > 0 ? Math.round(totalScore / student.scores.length) : 0;
-        
-        return {
-          id: student.id,
-          studentName: student.studentName,
-          roll_number: student.roll_number,
-          avgScore: avgScore,
-          completedQuizzes: student.completedQuizzes
-        };
-      });
+      const performanceList = Array.from(studentMap.values())
+        .filter(student => student.scores.length > 0) // Only include students with quiz attempts
+        .map(student => {
+          const totalScore = student.scores.reduce((sum: number, score: number) => sum + score, 0);
+          const avgScore = student.scores.length > 0 ? Math.round(totalScore / student.scores.length) : 0;
+          
+          return {
+            id: student.id,
+            studentName: student.studentName,
+            roll_number: student.roll_number,
+            avgScore: avgScore,
+            completedQuizzes: student.completedQuizzes
+          };
+        });
       
-      // Filter to only show students with 80% or higher average scores
-      const highPerformers = performanceList.filter(student => student.avgScore >= 80);
+      // Sort by average score (default: high to low)
+      performanceList.sort((a, b) => b.avgScore - a.avgScore);
       
-      // Sort by average score in descending order
-      highPerformers.sort((a, b) => b.avgScore - a.avgScore);
-      
-      setPerformanceData(highPerformers);
+      setPerformanceData(performanceList);
     } catch (error) {
       console.error('Error fetching performance data:', error);
       toast({
@@ -105,15 +105,54 @@ const StudentPerformanceList = () => {
     }
   };
   
+  const handleSortChange = (sortDirection: 'highToLow' | 'lowToHigh') => {
+    setSortBy(sortDirection);
+    const sortedData = [...performanceData];
+    
+    if (sortDirection === 'highToLow') {
+      sortedData.sort((a, b) => b.avgScore - a.avgScore);
+    } else {
+      sortedData.sort((a, b) => a.avgScore - b.avgScore);
+    }
+    
+    setPerformanceData(sortedData);
+  };
+  
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return 'bg-green-100 text-green-800';
+    if (score >= 80) return 'bg-blue-100 text-blue-800';
+    if (score >= 70) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
+  };
+  
   return (
     <div className="space-y-4">
-      <h3 className="text-xl font-semibold">Top Performing Students (80%+ Average)</h3>
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-4">
+        <h3 className="text-xl font-semibold">Student Performance Rankings</h3>
+        
+        <div className="flex space-x-2 mt-2 sm:mt-0">
+          <Button 
+            size="sm" 
+            variant={sortBy === 'highToLow' ? 'default' : 'outline'}
+            onClick={() => handleSortChange('highToLow')}
+          >
+            Highest First
+          </Button>
+          <Button 
+            size="sm" 
+            variant={sortBy === 'lowToHigh' ? 'default' : 'outline'}
+            onClick={() => handleSortChange('lowToHigh')}
+          >
+            Lowest First
+          </Button>
+        </div>
+      </div>
       
       {isLoading ? (
-        <div className="text-center py-4">Loading performance data...</div>
+        <div className="text-center py-8">Loading performance data...</div>
       ) : (
         <Table>
-          <TableCaption>Student performance ranked by average score (80% and above)</TableCaption>
+          <TableCaption>Student performance ranked by average score</TableCaption>
           <TableHeader>
             <TableRow>
               <TableHead>Rank</TableHead>
@@ -132,24 +171,28 @@ const StudentPerformanceList = () => {
                   <TableCell>{student.studentName}</TableCell>
                   <TableCell>{student.roll_number}</TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      student.avgScore >= 90 ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreColor(student.avgScore)}`}>
                       {student.avgScore}%
                     </span>
                   </TableCell>
                   <TableCell>{student.completedQuizzes}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      Certificate Eligible
-                    </Badge>
+                    {student.avgScore >= 80 ? (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        Certificate Eligible
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+                        In Progress
+                      </Badge>
+                    )}
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className="text-center">
-                  No students have achieved 80% or higher average scores yet
+                  No student performance data available
                 </TableCell>
               </TableRow>
             )}
