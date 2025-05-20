@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
+import { FileText, Award } from 'lucide-react';
 
 interface Certificate {
   id: string;
@@ -100,7 +101,10 @@ const CertificateViewer = () => {
   
   return (
     <div>
-      <h3 className="text-lg font-semibold mb-4">Student Certificates</h3>
+      <div className="flex items-center mb-4">
+        <Award className="h-5 w-5 mr-2 text-primary" />
+        <h3 className="text-lg font-semibold">Student Certificates</h3>
+      </div>
       
       {certificates.length === 0 ? (
         <p className="text-center py-8 text-gray-500">No certificates found.</p>
@@ -148,7 +152,10 @@ const CertificateViewer = () => {
                       {cert.file_url ? (
                         <div className="flex flex-col items-center">
                           {cert.file_url.endsWith('.pdf') ? (
-                            <p className="text-center mb-3">PDF Certificate</p>
+                            <div className="flex items-center mb-3">
+                              <FileText className="h-10 w-10 text-red-500 mr-2" />
+                              <p>PDF Certificate</p>
+                            </div>
                           ) : (
                             <img 
                               src={cert.file_url} 

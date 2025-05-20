@@ -57,8 +57,11 @@ const Login = () => {
       
       // Set app setting
       try {
-        // Use type assertion to handle type conflict
-        const settingParams = { 
+        // Use explicit typing to resolve the TypeScript error
+        const settingParams: {
+          key: string;
+          value: string;
+        } = { 
           key: 'app.current_student_roll',
           value: student.roll_number
         };
