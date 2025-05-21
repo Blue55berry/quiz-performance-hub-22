@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/common/Navbar';
@@ -5,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import { FileCheck, AlertCircle, Loader2 } from "lucide-react";
+import { FileCheck, AlertCircle, Loader2, TestTube } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -36,6 +37,7 @@ interface TestResult {
   message: string;
   output?: string;
   expected?: string;
+  details?: string[];
 }
 
 // Language IDs for Judge0
@@ -65,7 +67,7 @@ const QuizScreen = () => {
   const [isExecutingCode, setIsExecutingCode] = useState(false);
   const [testResults, setTestResults] = useState<TestResult | null>(null);
   const [codeSubmissionAttempts, setCodeSubmissionAttempts] = useState<Record<number, number>>({});
-  const [showSolution, setShowSolution] = useState(false);
+  const [showHints, setShowHints] = useState(false);
   
   // All questions organized by language
   const allMCQuestions: MCQuestion[] = [
@@ -388,11 +390,13 @@ const QuizScreen = () => {
     if (currentQuestionIndex < maxIndex) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setTestResults(null); // Reset test results for the next question
+      setShowHints(false); // Reset hints for next question
     } else if (quizType === 'mcq') {
       // Transition from MCQs to coding questions
       setQuizType('coding');
       setCurrentQuestionIndex(0);
       setTestResults(null);
+      setShowHints(false);
     } else {
       // Quiz completed
       handleQuizCompletion();
@@ -419,6 +423,7 @@ const QuizScreen = () => {
     return testCases;
   };
 
+  // Modified to provide more professional feedback without exposing actual errors
   const runTestCases = async (code: string, question: CodingQuestion) => {
     setIsExecutingCode(true);
     setTestResults(null);
@@ -438,32 +443,29 @@ const QuizScreen = () => {
         [question.id]: currentAttempts + 1
       });
       
-      // Prepare the code with test cases for Python
+      // Prepare the code with test cases
       let fullCode = code;
+      let testCases = parseTestCases(question.testCases);
       
-      // For Python, add test execution code
+      // Language-specific test runners
       if (question.language === 'python') {
-        const testCases = parseTestCases(question.testCases);
         const testFunctions = testCases.map((testCase, idx) => {
           return `
 # Test case ${idx + 1}
 try:
     test_result = ${testCase.input}
     expected = ${testCase.expected}
-    assert str(test_result) == str(expected), f"Test failed: Expected {expected}, got {test_result}"
-    print(f"Test {idx + 1} passed!")
+    assert str(test_result) == str(expected), f"Test case ${idx + 1} failed"
+    print(f"Test case ${idx + 1}: Passed")
 except Exception as e:
-    print(f"Test {idx + 1} failed: {e}")
+    print(f"Test case ${idx + 1}: Failed")
     exit(1)
 `;
         }).join('\n');
         
         fullCode = `${code}\n\n# Running tests\n${testFunctions}\nprint("All tests passed successfully!")`;
       }
-      
-      // For JavaScript, add test execution code
       else if (question.language === 'javascript') {
-        const testCases = parseTestCases(question.testCases);
         const testFunctions = testCases.map((testCase, idx) => {
           return `
 // Test case ${idx + 1}
@@ -471,22 +473,20 @@ try {
   const testResult = ${testCase.input};
   const expected = ${testCase.expected};
   if (JSON.stringify(testResult) !== JSON.stringify(expected)) {
-    console.error(\`Test ${idx + 1} failed: Expected \${expected}, got \${testResult}\`);
+    console.error(\`Test case ${idx + 1}: Failed\`);
     process.exit(1);
   }
-  console.log(\`Test ${idx + 1} passed!\`);
+  console.log(\`Test case ${idx + 1}: Passed\`);
 } catch (e) {
-  console.error(\`Test ${idx + 1} failed: \${e.message}\`);
+  console.error(\`Test case ${idx + 1}: Failed\`);
   process.exit(1);
 }`;
         }).join('\n');
         
         fullCode = `${code}\n\n// Running tests\n${testFunctions}\nconsole.log("All tests passed successfully!")`;
       }
-      
-      // For Java, we need to wrap the code in a class structure
       else if (question.language === 'java') {
-        // This is simplified and may need more sophisticated handling for Java
+        // This is simplified and would need more sophisticated handling for Java
         fullCode = code;
       }
       
@@ -495,6 +495,7 @@ try {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com',  // Add API credentials if needed
         },
         body: JSON.stringify({
           source_code: fullCode,
@@ -504,57 +505,72 @@ try {
       });
 
       if (!response.ok) {
-        throw new Error(`Judge0 API responded with status: ${response.status}`);
+        console.error(`Judge0 API error: ${response.status}`);
+        setTestResults({
+          passed: false,
+          message: "We're experiencing issues with our code runner. Please try again later.",
+          details: ["The code execution service is currently unavailable. This doesn't affect your progress."]
+        });
+        return;
       }
 
       const result = await response.json();
 
+      // Process the results in a more student-friendly way
       if (result.status?.description === 'Accepted' || 
           (result.stdout && result.stdout.includes("All tests passed"))) {
+        
+        // Extract individual test case results
+        const testDetails = result.stdout?.split('\n')
+          .filter((line: string) => line.includes('Test case'))
+          .map((line: string) => line.trim()) || [];
+        
         setTestResults({
           passed: true,
-          message: 'All test cases passed! Good job!',
-          output: result.stdout || 'Tests passed',
+          message: 'Great job! Your solution passed all test cases.',
+          details: testDetails,
         });
         
         toast({
           title: "Success!",
-          description: "Your code passed all test cases.",
+          description: "Your solution works correctly. You can proceed to the next question.",
         });
       } else {
-        let errorMessage = 'Your code did not pass all test cases. Please try again.';
+        // Don't expose the actual error, just indicate that tests failed
+        const testDetails = result.stdout?.split('\n')
+          .filter((line: string) => line.includes('Test case'))
+          .map((line: string) => line.trim()) || [];
         
-        if (result.stderr) {
-          errorMessage = `Error: ${result.stderr}`;
-        } else if (result.compile_output) {
-          errorMessage = `Compile error: ${result.compile_output}`;
-        } else if (result.stdout) {
-          errorMessage = `Test failure: ${result.stdout}`;
+        // If we have compile errors, give a hint about that
+        let message = "Your code didn't pass all test cases.";
+        if (result.compile_output) {
+          message = "There appears to be a syntax error in your code.";
         }
         
         setTestResults({
           passed: false,
-          message: errorMessage,
-          output: result.stdout || result.stderr || result.compile_output || 'Unknown error',
+          message: message,
+          details: testDetails.length ? testDetails : ["Review your logic and try again."],
         });
         
         toast({
           variant: "destructive",
           title: "Test Failed",
-          description: "Your code didn't pass all the test cases. Check the errors and try again.",
+          description: "Your solution needs some adjustments before proceeding.",
         });
       }
     } catch (error) {
       console.error('Error executing code:', error);
       setTestResults({
         passed: false,
-        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: "We encountered an issue while testing your code.",
+        details: ["The code execution service is currently unavailable. Please try again later."]
       });
       
       toast({
         variant: "destructive",
         title: "Error",
-        description: "There was a problem executing your code. Please try again.",
+        description: "There was a problem running your code. Please try again.",
       });
     } finally {
       setIsExecutingCode(false);
@@ -597,8 +613,8 @@ try {
     });
   };
   
-  const toggleSolution = () => {
-    setShowSolution(!showSolution);
+  const toggleHints = () => {
+    setShowHints(!showHints);
   };
   
   const renderQuestion = () => {
@@ -607,9 +623,11 @@ try {
       if (!question) return <p>No questions available for this language.</p>;
       
       return (
-        <div className="quiz-card">
-          <h3 className="quiz-header">Question {currentQuestionIndex + 1}</h3>
-          <p className="mb-6 text-lg">{question.text}</p>
+        <div className="quiz-card bg-white p-6 rounded-lg shadow-sm">
+          <h3 className="text-xl font-semibold mb-4 text-gray-800">Question {currentQuestionIndex + 1}</h3>
+          <div className="mb-6 text-lg bg-gray-50 p-4 rounded-md border border-gray-100">
+            {question.text}
+          </div>
           
           <div className="space-y-3">
             {question.options.map((option) => (
@@ -619,17 +637,6 @@ try {
                   selectedAnswers[question.id] === option.id 
                     ? 'bg-primary/10 border-primary' 
                     : 'hover:bg-gray-50'
-                } ${
-                  // Highlight the correct answer if selected
-                  selectedAnswers[question.id] && option.id === question.correctAnswer
-                    ? 'bg-green-100 border-green-500'
-                    : ''
-                } ${
-                  // Highlight wrong selection
-                  selectedAnswers[question.id] === option.id && 
-                  option.id !== question.correctAnswer
-                    ? 'bg-red-100 border-red-500'
-                    : ''
                 }`}
               >
                 <input
@@ -642,31 +649,21 @@ try {
                 />
                 <span className="font-medium">{option.id.toUpperCase()}.</span>
                 <span className="ml-2">{option.text}</span>
-                {selectedAnswers[question.id] && option.id === question.correctAnswer && (
-                  <span className="ml-2 text-green-600 font-bold"> (Correct Answer)</span>
-                )}
               </label>
             ))}
           </div>
           
+          {/* Only show if an answer was selected but don't reveal the correct answer */}
           {selectedAnswers[question.id] && (
-            <div className="mt-4 p-3 bg-gray-50 rounded-md">
-              <p className="font-medium">
-                {selectedAnswers[question.id] === question.correctAnswer 
-                  ? "✓ Correct! Well done!" 
-                  : `✗ Incorrect. The correct answer is option ${question.correctAnswer.toUpperCase()}.`}
-              </p>
+            <div className="mt-4">
+              <Button 
+                onClick={handleNextQuestion}
+                className="w-full"
+              >
+                Next Question
+              </Button>
             </div>
           )}
-          
-          <div className="mt-6 flex justify-end">
-            <Button 
-              onClick={handleNextQuestion} 
-              disabled={!selectedAnswers[question.id]}
-            >
-              {currentQuestionIndex < mcqQuestions.length - 1 ? "Next Question" : "Start Coding Questions"}
-            </Button>
-          </div>
         </div>
       );
     } else {
@@ -674,57 +671,98 @@ try {
       if (!question) return <p>No coding questions available for this language.</p>;
       
       return (
-        <div className="quiz-card">
-          <h3 className="quiz-header">Coding Question {currentQuestionIndex + 1}</h3>
-          <p className="mb-6 text-lg">{question.text}</p>
+        <div className="quiz-card bg-white p-6 rounded-lg shadow-sm">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-semibold text-gray-800">Coding Challenge {currentQuestionIndex + 1}</h3>
+            <div className="text-sm font-medium text-gray-500">
+              Language: {selectedLanguageName}
+            </div>
+          </div>
+          
+          <div className="mb-6 text-lg bg-gray-50 p-4 rounded-md border border-gray-100">
+            {question.text}
+          </div>
           
           <div className="mb-4">
-            <h4 className="text-sm font-semibold mb-2">Test Cases:</h4>
-            <pre className="bg-gray-100 p-3 rounded text-xs font-mono">
+            <h4 className="text-sm font-semibold mb-2 flex items-center">
+              <TestTube className="w-4 h-4 mr-1" />
+              Test Cases:
+            </h4>
+            <pre className="bg-gray-100 p-3 rounded text-xs font-mono overflow-x-auto">
               {question.testCases}
             </pre>
           </div>
           
-          <div>
+          <div className="mb-4">
             <Textarea
               className="w-full h-64 font-mono p-3 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               value={codingAnswers[question.id] || question.starterCode}
               onChange={(e) => handleCodingInput(question.id, e.target.value)}
+              placeholder="Write your solution here..."
             />
           </div>
           
           {testResults && (
-            <div className={`mt-4 ${testResults.passed ? 'text-green-600' : 'text-red-600'}`}>
-              <Alert variant={testResults.passed ? "default" : "destructive"}>
-                <AlertDescription>
-                  {testResults.message}
-                  {!testResults.passed && testResults.output && (
-                    <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
-                      {testResults.output}
-                    </pre>
-                  )}
-                </AlertDescription>
-              </Alert>
-            </div>
+            <Alert variant={testResults.passed ? "default" : "destructive"} className="mb-4">
+              <AlertDescription>
+                <p className="font-medium">{testResults.message}</p>
+                {testResults.details && testResults.details.length > 0 && (
+                  <ul className="mt-2 text-sm list-disc pl-5">
+                    {testResults.details.map((detail, index) => (
+                      <li key={index}>{detail}</li>
+                    ))}
+                  </ul>
+                )}
+              </AlertDescription>
+            </Alert>
           )}
           
-          {/* Sample solution toggle button and display */}
-          <div className="mt-4">
-            <Button variant="outline" onClick={toggleSolution} className="text-sm">
-              {showSolution ? "Hide Solution" : "Show Sample Solution"}
+          {/* Hints system instead of showing solutions */}
+          <div className="mt-4 mb-4">
+            <Button variant="outline" onClick={toggleHints} className="text-sm">
+              {showHints ? "Hide Hints" : "Show Hints"}
             </Button>
             
-            {showSolution && question.sampleSolution && (
-              <div className="mt-2">
-                <h4 className="text-sm font-semibold mb-1">Sample Solution:</h4>
-                <pre className="bg-gray-100 p-3 rounded text-xs font-mono overflow-auto max-h-64">
-                  {question.sampleSolution}
-                </pre>
+            {showHints && (
+              <div className="mt-2 bg-blue-50 p-3 rounded-md border border-blue-100">
+                <h4 className="text-sm font-semibold mb-1">Problem Approach:</h4>
+                <ul className="list-disc pl-5 text-sm">
+                  {question.language === 'javascript' && question.id === 1 && (
+                    <>
+                      <li>Remember to use the + operator for addition</li>
+                      <li>The function should return the sum of both parameters</li>
+                    </>
+                  )}
+                  {question.language === 'javascript' && question.id === 2 && (
+                    <>
+                      <li>A palindrome reads the same forwards and backwards</li>
+                      <li>Try reversing the string and comparing it to the original</li>
+                      <li>JavaScript strings can be split into arrays, reversed, and joined back</li>
+                    </>
+                  )}
+                  {question.language === 'python' && question.id === 3 && (
+                    <>
+                      <li>Check if n is less than 2 first (edge case)</li>
+                      <li>You only need to check for factors up to the square root of n</li>
+                      <li>Return True if no factors are found</li>
+                    </>
+                  )}
+                  {question.language === 'python' && question.id === 4 && (
+                    <>
+                      <li>Remember that 0! = 1 (base case)</li>
+                      <li>Consider using recursion or iteration</li>
+                      <li>For large numbers, be careful of stack overflow with recursion</li>
+                    </>
+                  )}
+                  {!['javascript', 'python'].includes(question.language) && (
+                    <li>Break down the problem into smaller steps</li>
+                  )}
+                </ul>
               </div>
             )}
           </div>
           
-          <div className="mt-6 flex justify-between">
+          <div className="mt-4 flex justify-between">
             <Button
               variant="outline"
               onClick={() => runTestCases(codingAnswers[question.id] || question.starterCode, question)}
@@ -762,12 +800,19 @@ try {
       
       <main className="flex-1 container mx-auto p-4 md:p-6">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-2">
-            {selectedLanguageName} Quiz
-          </h1>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4">
+            <h1 className="text-2xl font-bold">
+              {selectedLanguageName} Proficiency Assessment
+            </h1>
+            
+            <div className="text-sm font-medium text-gray-600 mt-2 sm:mt-0">
+              Attempts remaining: Unlimited
+            </div>
+          </div>
+          
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium">
-              {quizType === 'mcq' ? 'Multiple Choice' : 'Coding Questions'} ({currentQuestionIndex + 1}/
+              {quizType === 'mcq' ? 'Knowledge Assessment' : 'Practical Skills'} ({currentQuestionIndex + 1}/
               {quizType === 'mcq' ? mcqQuestions.length : codingQuestions.length})
             </span>
             <span className="text-sm font-medium">{progress.toFixed(0)}% Complete</span>
