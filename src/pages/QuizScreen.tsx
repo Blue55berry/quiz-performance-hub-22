@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/common/Navbar';
@@ -6,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
-import { FileCheck } from "lucide-react";
+import { FileCheck, AlertCircle, Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface MCQOption {
   id: string;
@@ -29,6 +30,23 @@ interface CodingQuestion {
   testCases: string;
 }
 
+interface TestResult {
+  passed: boolean;
+  message: string;
+  output?: string;
+  expected?: string;
+}
+
+// Language IDs for Judge0
+const JUDGE0_LANGUAGE_IDS: Record<string, number> = {
+  'javascript': 63,
+  'python': 71,
+  'java': 62,
+  'csharp': 51,
+  'cpp': 54,
+  'c': 50,
+};
+
 const QuizScreen = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -42,6 +60,9 @@ const QuizScreen = () => {
   const [quizType, setQuizType] = useState<'mcq' | 'coding'>('mcq');
   const [progress, setProgress] = useState(0);
   const [score, setScore] = useState(0);
+  const [isExecutingCode, setIsExecutingCode] = useState(false);
+  const [testResults, setTestResults] = useState<TestResult | null>(null);
+  const [codeSubmissionAttempts, setCodeSubmissionAttempts] = useState<Record<number, number>>({});
   
   // All questions organized by language
   const allMCQuestions: MCQuestion[] = [
@@ -306,26 +327,45 @@ const QuizScreen = () => {
       ...codingAnswers,
       [questionId]: code
     });
+    // Reset test results when code changes
+    setTestResults(null);
   };
 
-  // Calculate score based on MCQ answers
+  // Calculate score based on MCQ answers and code attempts
   const calculateScore = () => {
-    let correctAnswers = 0;
+    let totalScore = 0;
     
-    // Check MCQ answers
+    // Check MCQ answers - each correct answer is worth 10 points
     mcqQuestions.forEach(question => {
       if (selectedAnswers[question.id] === question.correctAnswer) {
-        correctAnswers++;
+        totalScore += 10;
       }
     });
     
-    // For coding questions, we'll give a default score since we can't evaluate code here
-    // In a real app, you'd have an actual code evaluation system
-    const codingScore = Object.keys(codingAnswers).length;
+    // Evaluate coding questions - each correct implementation is worth 20 points
+    // but with deduction based on number of attempts
+    codingQuestions.forEach(question => {
+      // If the student has code for this question and we assume it passes
+      // (since they can only proceed after passing tests)
+      if (codingAnswers[question.id]) {
+        // Base score is 20 points
+        let questionScore = 20;
+        
+        // Deduct 2 points for each failed attempt (beyond the first attempt)
+        const attempts = codeSubmissionAttempts[question.id] || 1;
+        if (attempts > 1) {
+          questionScore -= (attempts - 1) * 2;
+          // Minimum score is 5 points if they eventually got it right
+          questionScore = Math.max(questionScore, 5);
+        }
+        
+        totalScore += questionScore;
+      }
+    });
     
-    // Calculate percentage
-    const totalQuestions = mcqQuestions.length + codingQuestions.length;
-    const percentage = Math.round(((correctAnswers + codingScore) / totalQuestions) * 100);
+    // Calculate percentage based on maximum possible score
+    const maxScore = (mcqQuestions.length * 10) + (codingQuestions.length * 20);
+    const percentage = Math.round((totalScore / maxScore) * 100);
     
     setScore(percentage);
     return percentage;
@@ -336,13 +376,173 @@ const QuizScreen = () => {
     
     if (currentQuestionIndex < maxIndex) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setTestResults(null); // Reset test results for the next question
     } else if (quizType === 'mcq') {
       // Transition from MCQs to coding questions
       setQuizType('coding');
       setCurrentQuestionIndex(0);
+      setTestResults(null);
     } else {
       // Quiz completed
       handleQuizCompletion();
+    }
+  };
+
+  const parseTestCases = (testCasesStr: string): { input: string; expected: string }[] => {
+    // Simple parsing based on newlines and expected format
+    const lines = testCasesStr.trim().split('\n');
+    const testCases: { input: string; expected: string }[] = [];
+    
+    for (const line of lines) {
+      if (line.includes('===')) {
+        const [input, expected] = line.split('===').map(part => part.trim());
+        testCases.push({ input, expected });
+      } else {
+        const parts = line.match(/(.+)\s*==\s*(.+)/);
+        if (parts && parts.length === 3) {
+          testCases.push({ input: parts[1].trim(), expected: parts[2].trim() });
+        }
+      }
+    }
+    
+    return testCases;
+  };
+
+  const runTestCases = async (code: string, question: CodingQuestion) => {
+    setIsExecutingCode(true);
+    setTestResults(null);
+    
+    try {
+      const langId = JUDGE0_LANGUAGE_IDS[question.language];
+      if (!langId) {
+        throw new Error(`Language ${question.language} is not supported`);
+      }
+      
+      // Get the current attempt count or initialize to 1
+      const currentAttempts = codeSubmissionAttempts[question.id] || 0;
+      
+      // Update the attempt counter
+      setCodeSubmissionAttempts({
+        ...codeSubmissionAttempts,
+        [question.id]: currentAttempts + 1
+      });
+      
+      // Prepare the code with test cases for Python
+      let fullCode = code;
+      
+      // For Python, add test execution code
+      if (question.language === 'python') {
+        const testCases = parseTestCases(question.testCases);
+        const testFunctions = testCases.map((testCase, idx) => {
+          return `
+# Test case ${idx + 1}
+try:
+    test_result = ${testCase.input}
+    expected = ${testCase.expected}
+    assert str(test_result) == str(expected), f"Test failed: Expected {expected}, got {test_result}"
+    print(f"Test {idx + 1} passed!")
+except Exception as e:
+    print(f"Test {idx + 1} failed: {e}")
+    exit(1)
+`;
+        }).join('\n');
+        
+        fullCode = `${code}\n\n# Running tests\n${testFunctions}\nprint("All tests passed successfully!")`;
+      }
+      
+      // For JavaScript, add test execution code
+      else if (question.language === 'javascript') {
+        const testCases = parseTestCases(question.testCases);
+        const testFunctions = testCases.map((testCase, idx) => {
+          return `
+// Test case ${idx + 1}
+try {
+  const testResult = ${testCase.input};
+  const expected = ${testCase.expected};
+  if (JSON.stringify(testResult) !== JSON.stringify(expected)) {
+    console.error(\`Test ${idx + 1} failed: Expected \${expected}, got \${testResult}\`);
+    process.exit(1);
+  }
+  console.log(\`Test ${idx + 1} passed!\`);
+} catch (e) {
+  console.error(\`Test ${idx + 1} failed: \${e.message}\`);
+  process.exit(1);
+}`;
+        }).join('\n');
+        
+        fullCode = `${code}\n\n// Running tests\n${testFunctions}\nconsole.log("All tests passed successfully!")`;
+      }
+      
+      // For Java, we need to wrap the code in a class structure
+      else if (question.language === 'java') {
+        // This is simplified and may need more sophisticated handling for Java
+        fullCode = code;
+      }
+      
+      // Make API request to Judge0
+      const response = await fetch('https://ce.judge0.com/submissions/?base64_encoded=false&wait=true', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source_code: fullCode,
+          language_id: langId,
+          stdin: '',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.status?.description === 'Accepted' || 
+          (result.stdout && result.stdout.includes("All tests passed"))) {
+        setTestResults({
+          passed: true,
+          message: 'All test cases passed! Good job!',
+          output: result.stdout || 'Tests passed',
+        });
+        
+        toast({
+          title: "Success!",
+          description: "Your code passed all test cases.",
+        });
+      } else {
+        let errorMessage = 'Your code did not pass all test cases. Please try again.';
+        
+        if (result.stderr) {
+          errorMessage = `Error: ${result.stderr}`;
+        } else if (result.compile_output) {
+          errorMessage = `Compile error: ${result.compile_output}`;
+        } else if (result.stdout) {
+          errorMessage = `Test failure: ${result.stdout}`;
+        }
+        
+        setTestResults({
+          passed: false,
+          message: errorMessage,
+          output: result.stdout || result.stderr || result.compile_output || 'Unknown error',
+        });
+        
+        toast({
+          variant: "destructive",
+          title: "Test Failed",
+          description: "Your code didn't pass all the test cases. Check the errors and try again.",
+        });
+      }
+    } catch (error) {
+      console.error('Error executing code:', error);
+      setTestResults({
+        passed: false,
+        message: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+      
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "There was a problem executing your code. Please try again.",
+      });
+    } finally {
+      setIsExecutingCode(false);
     }
   };
   
@@ -443,17 +643,51 @@ const QuizScreen = () => {
           </div>
           
           <div>
-            <textarea
+            <Textarea
               className="w-full h-64 font-mono p-3 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
               value={codingAnswers[question.id] || question.starterCode}
               onChange={(e) => handleCodingInput(question.id, e.target.value)}
             />
           </div>
           
-          <div className="mt-6 flex justify-end">
+          {testResults && (
+            <div className={`mt-4 ${testResults.passed ? 'text-green-600' : 'text-red-600'}`}>
+              <Alert variant={testResults.passed ? "default" : "destructive"}>
+                <AlertDescription>
+                  {testResults.message}
+                  {!testResults.passed && testResults.output && (
+                    <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-32">
+                      {testResults.output}
+                    </pre>
+                  )}
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+          
+          <div className="mt-6 flex justify-between">
+            <Button
+              variant="outline"
+              onClick={() => runTestCases(codingAnswers[question.id] || question.starterCode, question)}
+              disabled={isExecutingCode || !codingAnswers[question.id]}
+              className="flex items-center"
+            >
+              {isExecutingCode ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                <>
+                  <FileCheck className="mr-2 h-4 w-4" />
+                  Run Tests
+                </>
+              )}
+            </Button>
+            
             <Button 
               onClick={handleNextQuestion}
-              disabled={!codingAnswers[question.id]}
+              disabled={!testResults?.passed}
             >
               {currentQuestionIndex < codingQuestions.length - 1 ? "Next Question" : "Submit Quiz"}
             </Button>

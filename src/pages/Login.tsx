@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from '@/integrations/supabase/client';
+
+interface SetAppSettingParams {
+  key: string;
+  value: string;
+}
 
 const Login = () => {
   const navigate = useNavigate();
@@ -24,9 +28,10 @@ const Login = () => {
   const [adminPassword, setAdminPassword] = useState('');
   
   // Handle student login
-  const handleStudentLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleStudentLogin = async (event: React.SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setIsLoading(true);
+    
     try {
       // Validate student credentials
       const { data: students, error } = await supabase
@@ -57,18 +62,15 @@ const Login = () => {
       
       // Set app setting
       try {
-        // Use explicit typing to resolve the TypeScript error
-        const settingParams: {
-          key: string;
-          value: string;
-        } = { 
+        // Use properly typed interface to resolve the TypeScript error
+        const settingParams: SetAppSettingParams = { 
           key: 'app.current_student_roll',
           value: student.roll_number
         };
         
         await supabase.rpc('set_app_setting', settingParams);
-      } catch (rpcError) {
-        console.error('Error setting app setting:', rpcError);
+      } catch (err) {
+        console.error('Error setting app setting:', err);
         // Continue with login flow even if this fails
       }
       
