@@ -1,240 +1,223 @@
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/components/ui/use-toast";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from '@/integrations/supabase/client';
-
-interface SetAppSettingParams {
-  key: string;
-  value: string;
-}
+import { useToast } from "@/components/ui/use-toast";
 
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("student-login");
   
-  // Student login state
-  const [studentRollNumber, setStudentRollNumber] = useState('');
-  const [studentPassword, setStudentPassword] = useState('');
+  // Student login states
+  const [studentName, setStudentName] = useState<string>('');
+  const [studentId, setStudentId] = useState<string>('');
   
-  // Admin login state
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
+  // Admin login states
+  const [adminEmail, setAdminEmail] = useState<string>('');
+  const [adminPassword, setAdminPassword] = useState<string>('');
   
-  // Handle student login
-  const handleStudentLogin = async (event: React.SyntheticEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsLoading(true);
+  // Login loading states
+  const [isStudentLoggingIn, setIsStudentLoggingIn] = useState<boolean>(false);
+  const [isAdminLoggingIn, setIsAdminLoggingIn] = useState<boolean>(false);
+  
+  const handleStudentLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsStudentLoggingIn(true);
     
     try {
-      // Validate student credentials
-      const { data: students, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('roll_number', studentRollNumber)
-        .eq('password', studentPassword);
-      
-      if (error) throw error;
-      
-      if (!students || students.length === 0) {
-        toast({
-          variant: "destructive",
-          title: "Login failed",
-          description: "Invalid roll number or password.",
-        });
-        setIsLoading(false);
-        return;
+      if (!studentName.trim() || !studentId.trim()) {
+        throw new Error('Please fill in all fields');
       }
-      
-      const student = students[0];
       
       // Store student info in localStorage
-      localStorage.setItem('studentId', student.id);
-      localStorage.setItem('studentName', student.name);
-      localStorage.setItem('studentRollNumber', student.roll_number);
-      localStorage.setItem('currentUserType', 'student');
+      localStorage.setItem('studentName', studentName);
+      localStorage.setItem('studentId', studentId);
       
-      // Set app setting
-      try {
-        // Use properly typed interface to resolve the TypeScript error
-        const settingParams: SetAppSettingParams = { 
-          key: 'app.current_student_roll',
-          value: student.roll_number
-        };
-        
-        await supabase.rpc('set_app_setting', settingParams);
-      } catch (err) {
-        console.error('Error setting app setting:', err);
-        // Continue with login flow even if this fails
+      // Check if student exists in database, if not, create a new entry
+      const { data: existingStudent, error: fetchError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('student_id', studentId)
+        .maybeSingle();
+      
+      if (fetchError) {
+        throw new Error(fetchError.message);
+      }
+      
+      // If student doesn't exist, create a new entry
+      if (!existingStudent) {
+        const { error: insertError } = await supabase
+          .from('students')
+          .insert([{ student_id: studentId, name: studentName }]);
+          
+        if (insertError) {
+          throw new Error(insertError.message);
+        }
       }
       
       toast({
-        title: "Login successful",
-        description: `Welcome back, ${student.name}!`,
+        title: "Login Successful",
+        description: `Welcome, ${studentName}!`
       });
       
-      // Redirect to student dashboard
       navigate('/student/dashboard');
     } catch (error) {
-      console.error('Student login error:', error);
       toast({
         variant: "destructive",
-        title: "Login failed",
-        description: "An error occurred during login. Please try again.",
+        title: "Login Error",
+        description: error instanceof Error ? error.message : "An unexpected error occurred"
       });
     } finally {
-      setIsLoading(false);
+      setIsStudentLoggingIn(false);
     }
   };
   
-  // Handle admin login
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsAdminLoggingIn(true);
+    
     try {
-      // Simplified admin authentication
-      if (adminEmail === 'admin@example.com' && adminPassword === 'admin123') {
-        localStorage.setItem('adminName', 'Administrator');
-        localStorage.setItem('currentUserType', 'admin');
-        
-        toast({
-          title: "Admin login successful",
-          description: "Welcome to the admin dashboard!",
-        });
-        
-        navigate('/admin/dashboard');
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Login failed",
-          description: "Invalid admin credentials.",
-        });
+      if (!adminEmail.trim() || !adminPassword.trim()) {
+        throw new Error('Please fill in all fields');
       }
+      
+      const { error } = await supabase.auth.signInWithPassword({
+        email: adminEmail,
+        password: adminPassword,
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      toast({
+        title: "Login Successful",
+        description: "Welcome to the Admin Dashboard!"
+      });
+      
+      navigate('/admin/dashboard');
     } catch (error) {
-      console.error('Admin login error:', error);
       toast({
         variant: "destructive",
-        title: "Login failed",
-        description: "An error occurred during login. Please try again.",
+        title: "Login Error",
+        description: error instanceof Error ? error.message : "An unexpected error occurred"
       });
     } finally {
-      setIsLoading(false);
+      setIsAdminLoggingIn(false);
     }
   };
-
+  
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <div className="bg-primary text-white py-4 px-6 flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Quiz Performance Hub</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-full max-w-md p-4">
+        <Tabs defaultValue="student" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="student">Student</TabsTrigger>
+            <TabsTrigger value="admin">Admin</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="student">
+            <Card>
+              <CardHeader>
+                <CardTitle>Student Login</CardTitle>
+                <CardDescription>
+                  Enter your information to access your quizzes and certificates.
+                </CardDescription>
+              </CardHeader>
+              
+              <form onSubmit={handleStudentLogin}>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="studentName">Full Name</Label>
+                    <Input 
+                      id="studentName" 
+                      placeholder="Enter your full name"
+                      value={studentName}
+                      onChange={(e) => setStudentName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="studentId">Student ID</Label>
+                    <Input 
+                      id="studentId" 
+                      placeholder="Enter your student ID"
+                      value={studentId}
+                      onChange={(e) => setStudentId(e.target.value)}
+                      required
+                    />
+                  </div>
+                </CardContent>
+                
+                <CardFooter>
+                  <Button 
+                    type="submit" 
+                    className="w-full"
+                    disabled={isStudentLoggingIn}
+                  >
+                    {isStudentLoggingIn ? "Logging in..." : "Continue as Student"}
+                  </Button>
+                </CardFooter>
+              </form>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="admin">
+            <Card>
+              <CardHeader>
+                <CardTitle>Admin Login</CardTitle>
+                <CardDescription>
+                  Enter your credentials to access the admin dashboard.
+                </CardDescription>
+              </CardHeader>
+              
+              <form onSubmit={handleAdminLogin}>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="adminEmail">Email</Label>
+                    <Input 
+                      id="adminEmail" 
+                      type="email" 
+                      placeholder="Enter your email"
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="adminPassword">Password</Label>
+                    <Input 
+                      id="adminPassword" 
+                      type="password" 
+                      placeholder="Enter your password"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                </CardContent>
+                
+                <CardFooter>
+                  <Button 
+                    type="submit" 
+                    className="w-full"
+                    disabled={isAdminLoggingIn}
+                  >
+                    {isAdminLoggingIn ? "Logging in..." : "Login as Admin"}
+                  </Button>
+                </CardFooter>
+              </form>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
-      
-      <main className="flex-1 container mx-auto p-4 flex items-center justify-center">
-        <div className="w-full max-w-md">
-          <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="text-2xl">Login</CardTitle>
-              <CardDescription>
-                Access your account
-              </CardDescription>
-            </CardHeader>
-            
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid grid-cols-2 mb-4 mx-6">
-                <TabsTrigger value="student-login">Student</TabsTrigger>
-                <TabsTrigger value="admin-login">Administrator</TabsTrigger>
-              </TabsList>
-              
-              {/* Student Login Tab */}
-              <TabsContent value="student-login">
-                <CardContent>
-                  <form onSubmit={handleStudentLogin} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="roll-number">Roll Number</Label>
-                      <Input
-                        id="roll-number"
-                        placeholder="Enter your roll number"
-                        value={studentRollNumber}
-                        onChange={(e) => setStudentRollNumber(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="student-password">Password</Label>
-                      <Input
-                        id="student-password"
-                        type="password"
-                        placeholder="Enter your password"
-                        value={studentPassword}
-                        onChange={(e) => setStudentPassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full bg-purple-600 hover:bg-purple-700"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? "Logging in..." : "Student Login"}
-                    </Button>
-                  </form>
-                </CardContent>
-              </TabsContent>
-              
-              {/* Admin Login Tab */}
-              <TabsContent value="admin-login">
-                <CardContent>
-                  <form onSubmit={handleAdminLogin} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="admin-email">Email</Label>
-                      <Input
-                        id="admin-email"
-                        type="email"
-                        placeholder="admin@example.com"
-                        value={adminEmail}
-                        onChange={(e) => setAdminEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="admin-password">Password</Label>
-                      <Input
-                        id="admin-password"
-                        type="password"
-                        placeholder="Password"
-                        value={adminPassword}
-                        onChange={(e) => setAdminPassword(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? "Logging in..." : "Login"}
-                    </Button>
-                  </form>
-                </CardContent>
-              </TabsContent>
-            </Tabs>
-            
-            <CardFooter className="flex justify-center">
-              <Button
-                variant="ghost"
-                onClick={() => navigate('/')}
-              >
-                Back to Home
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
-      </main>
     </div>
   );
 };
