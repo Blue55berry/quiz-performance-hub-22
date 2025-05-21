@@ -42,7 +42,7 @@ const Login = () => {
       const { data: existingStudent, error: fetchError } = await supabase
         .from('students')
         .select('*')
-        .eq('student_id', studentId)
+        .eq('roll_number', studentId)
         .maybeSingle();
       
       if (fetchError) {
@@ -53,7 +53,13 @@ const Login = () => {
       if (!existingStudent) {
         const { error: insertError } = await supabase
           .from('students')
-          .insert([{ student_id: studentId, name: studentName }]);
+          .insert({
+            name: studentName,
+            roll_number: studentId,
+            // Required fields from the students table structure
+            email: `${studentId}@student.edu`, // Generate a placeholder email
+            password: 'temporary-password'      // Generate a temporary password
+          });
           
         if (insertError) {
           throw new Error(insertError.message);
