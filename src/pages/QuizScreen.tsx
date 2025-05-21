@@ -28,6 +28,7 @@ interface CodingQuestion {
   text: string;
   starterCode: string;
   testCases: string;
+  sampleSolution?: string;
 }
 
 interface TestResult {
@@ -45,6 +46,7 @@ const JUDGE0_LANGUAGE_IDS: Record<string, number> = {
   'csharp': 51,
   'cpp': 54,
   'c': 50,
+  'typescript': 74,
 };
 
 const QuizScreen = () => {
@@ -63,6 +65,7 @@ const QuizScreen = () => {
   const [isExecutingCode, setIsExecutingCode] = useState(false);
   const [testResults, setTestResults] = useState<TestResult | null>(null);
   const [codeSubmissionAttempts, setCodeSubmissionAttempts] = useState<Record<number, number>>({});
+  const [showSolution, setShowSolution] = useState(false);
   
   // All questions organized by language
   const allMCQuestions: MCQuestion[] = [
@@ -224,14 +227,16 @@ const QuizScreen = () => {
       language: 'javascript',
       text: "Write a function that returns the sum of two numbers.",
       starterCode: "function sum(a, b) {\n  // Your code here\n}",
-      testCases: "sum(1, 2) === 3\nsum(-1, 1) === 0"
+      testCases: "sum(1, 2) === 3\nsum(-1, 1) === 0",
+      sampleSolution: "function sum(a, b) {\n  return a + b;\n}"
     },
     {
       id: 2,
       language: 'javascript',
       text: "Write a function that checks if a string is a palindrome.",
       starterCode: "function isPalindrome(str) {\n  // Your code here\n}",
-      testCases: "isPalindrome('racecar') === true\nisPalindrome('hello') === false"
+      testCases: "isPalindrome('racecar') === true\nisPalindrome('hello') === false",
+      sampleSolution: "function isPalindrome(str) {\n  const reversed = str.split('').reverse().join('');\n  return str === reversed;\n}"
     },
     // Python coding questions
     {
@@ -239,14 +244,16 @@ const QuizScreen = () => {
       language: 'python',
       text: "Write a function to check if a number is prime.",
       starterCode: "def is_prime(n):\n    # Your code here\n    pass",
-      testCases: "is_prime(7) == True\nis_prime(4) == False"
+      testCases: "is_prime(7) == True\nis_prime(4) == False",
+      sampleSolution: "def is_prime(n):\n    if n <= 1:\n        return False\n    for i in range(2, int(n**0.5) + 1):\n        if n % i == 0:\n            return False\n    return True"
     },
     {
       id: 4,
       language: 'python',
       text: "Write a function that returns the factorial of a number.",
       starterCode: "def factorial(n):\n    # Your code here\n    pass",
-      testCases: "factorial(5) == 120\nfactorial(0) == 1"
+      testCases: "factorial(5) == 120\nfactorial(0) == 1",
+      sampleSolution: "def factorial(n):\n    if n == 0:\n        return 1\n    return n * factorial(n-1)"
     },
     // Java coding questions
     {
@@ -254,14 +261,16 @@ const QuizScreen = () => {
       language: 'java',
       text: "Create a method to find the largest element in an array.",
       starterCode: "public class Solution {\n    public static int findMax(int[] array) {\n        // Your code here\n    }\n}",
-      testCases: "findMax([1, 3, 5, 7, 2]) returns 7\nfindMax([-1, -5, -2]) returns -1"
+      testCases: "findMax([1, 3, 5, 7, 2]) returns 7\nfindMax([-1, -5, -2]) returns -1",
+      sampleSolution: "public class Solution {\n    public static int findMax(int[] array) {\n        int max = array[0];\n        for (int i = 1; i < array.length; i++) {\n            if (array[i] > max) {\n                max = array[i];\n            }\n        }\n        return max;\n    }\n}"
     },
     {
       id: 6,
       language: 'java',
       text: "Write a method to check if a string contains only digits.",
       starterCode: "public class Solution {\n    public static boolean containsOnlyDigits(String str) {\n        // Your code here\n    }\n}",
-      testCases: 'containsOnlyDigits("12345") returns true\ncontainsOnlyDigits("123a") returns false'
+      testCases: 'containsOnlyDigits("12345") returns true\ncontainsOnlyDigits("123a") returns false',
+      sampleSolution: "public class Solution {\n    public static boolean containsOnlyDigits(String str) {\n        for (int i = 0; i < str.length(); i++) {\n            if (!Character.isDigit(str.charAt(i))) {\n                return false;\n            }\n        }\n        return true;\n    }\n}"
     },
     // C# coding questions
     {
@@ -269,14 +278,16 @@ const QuizScreen = () => {
       language: 'csharp',
       text: "Write a method to reverse a string without using the built-in Reverse method.",
       starterCode: "public class Solution {\n    public static string ReverseString(string input) {\n        // Your code here\n    }\n}",
-      testCases: 'ReverseString("hello") returns "olleh"\nReverseString("C#") returns "#C"'
+      testCases: 'ReverseString("hello") returns "olleh"\nReverseString("C#") returns "#C"',
+      sampleSolution: "public class Solution {\n    public static string ReverseString(string input) {\n        char[] charArray = input.ToCharArray();\n        int left = 0;\n        int right = charArray.Length - 1;\n        while (left < right) {\n            char temp = charArray[left];\n            charArray[left] = charArray[right];\n            charArray[right] = temp;\n            left++;\n            right--;\n        }\n        return new string(charArray);\n    }\n}"
     },
     {
       id: 8,
       language: 'csharp',
       text: "Write a method to find all even numbers in a list.",
       starterCode: "public class Solution {\n    public static List<int> FindEvenNumbers(List<int> numbers) {\n        // Your code here\n    }\n}",
-      testCases: "FindEvenNumbers([1, 2, 3, 4, 5]) returns [2, 4]\nFindEvenNumbers([7, 9, 11]) returns []"
+      testCases: "FindEvenNumbers([1, 2, 3, 4, 5]) returns [2, 4]\nFindEvenNumbers([7, 9, 11]) returns []",
+      sampleSolution: "public class Solution {\n    public static List<int> FindEvenNumbers(List<int> numbers) {\n        List<int> result = new List<int>();\n        foreach (int num in numbers) {\n            if (num % 2 == 0) {\n                result.Add(num);\n            }\n        }\n        return result;\n    }\n}"
     }
   ];
 
@@ -492,6 +503,10 @@ try {
         }),
       });
 
+      if (!response.ok) {
+        throw new Error(`Judge0 API responded with status: ${response.status}`);
+      }
+
       const result = await response.json();
 
       if (result.status?.description === 'Accepted' || 
@@ -582,6 +597,10 @@ try {
     });
   };
   
+  const toggleSolution = () => {
+    setShowSolution(!showSolution);
+  };
+  
   const renderQuestion = () => {
     if (quizType === 'mcq') {
       const question = mcqQuestions[currentQuestionIndex];
@@ -600,6 +619,17 @@ try {
                   selectedAnswers[question.id] === option.id 
                     ? 'bg-primary/10 border-primary' 
                     : 'hover:bg-gray-50'
+                } ${
+                  // Highlight the correct answer if selected
+                  selectedAnswers[question.id] && option.id === question.correctAnswer
+                    ? 'bg-green-100 border-green-500'
+                    : ''
+                } ${
+                  // Highlight wrong selection
+                  selectedAnswers[question.id] === option.id && 
+                  option.id !== question.correctAnswer
+                    ? 'bg-red-100 border-red-500'
+                    : ''
                 }`}
               >
                 <input
@@ -612,9 +642,22 @@ try {
                 />
                 <span className="font-medium">{option.id.toUpperCase()}.</span>
                 <span className="ml-2">{option.text}</span>
+                {selectedAnswers[question.id] && option.id === question.correctAnswer && (
+                  <span className="ml-2 text-green-600 font-bold"> (Correct Answer)</span>
+                )}
               </label>
             ))}
           </div>
+          
+          {selectedAnswers[question.id] && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-md">
+              <p className="font-medium">
+                {selectedAnswers[question.id] === question.correctAnswer 
+                  ? "✓ Correct! Well done!" 
+                  : `✗ Incorrect. The correct answer is option ${question.correctAnswer.toUpperCase()}.`}
+              </p>
+            </div>
+          )}
           
           <div className="mt-6 flex justify-end">
             <Button 
@@ -664,6 +707,22 @@ try {
               </Alert>
             </div>
           )}
+          
+          {/* Sample solution toggle button and display */}
+          <div className="mt-4">
+            <Button variant="outline" onClick={toggleSolution} className="text-sm">
+              {showSolution ? "Hide Solution" : "Show Sample Solution"}
+            </Button>
+            
+            {showSolution && question.sampleSolution && (
+              <div className="mt-2">
+                <h4 className="text-sm font-semibold mb-1">Sample Solution:</h4>
+                <pre className="bg-gray-100 p-3 rounded text-xs font-mono overflow-auto max-h-64">
+                  {question.sampleSolution}
+                </pre>
+              </div>
+            )}
+          </div>
           
           <div className="mt-6 flex justify-between">
             <Button
