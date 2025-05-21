@@ -14,8 +14,8 @@ const Login = () => {
   const { toast } = useToast();
   
   // Student login states
-  const [studentName, setStudentName] = useState<string>('');
   const [studentId, setStudentId] = useState<string>('');
+  const [studentPassword, setStudentPassword] = useState<string>('');
   
   // Admin login states
   const [adminEmail, setAdminEmail] = useState<string>('');
@@ -30,15 +30,11 @@ const Login = () => {
     setIsStudentLoggingIn(true);
     
     try {
-      if (!studentName.trim() || !studentId.trim()) {
+      if (!studentId.trim() || !studentPassword.trim()) {
         throw new Error('Please fill in all fields');
       }
       
-      // Store student info in localStorage
-      localStorage.setItem('studentName', studentName);
-      localStorage.setItem('studentId', studentId);
-      
-      // Check if student exists in database, if not, create a new entry
+      // Check if student exists in database
       const { data: existingStudent, error: fetchError } = await supabase
         .from('students')
         .select('*')
@@ -49,26 +45,23 @@ const Login = () => {
         throw new Error(fetchError.message);
       }
       
-      // If student doesn't exist, create a new entry
+      // If student doesn't exist or password doesn't match
       if (!existingStudent) {
-        const { error: insertError } = await supabase
-          .from('students')
-          .insert({
-            name: studentName,
-            roll_number: studentId,
-            // Required fields from the students table structure
-            email: `${studentId}@student.edu`, // Generate a placeholder email
-            password: 'temporary-password'      // Generate a temporary password
-          });
-          
-        if (insertError) {
-          throw new Error(insertError.message);
-        }
+        throw new Error('Student ID not found');
       }
+      
+      // Check if password matches
+      if (existingStudent.password !== studentPassword) {
+        throw new Error('Invalid password');
+      }
+      
+      // Store student info in localStorage
+      localStorage.setItem('studentName', existingStudent.name);
+      localStorage.setItem('studentId', studentId);
       
       toast({
         title: "Login Successful",
-        description: `Welcome, ${studentName}!`
+        description: `Welcome, ${existingStudent.name}!`
       });
       
       navigate('/student/dashboard');
@@ -132,23 +125,12 @@ const Login = () => {
               <CardHeader>
                 <CardTitle>Student Login</CardTitle>
                 <CardDescription>
-                  Enter your information to access your quizzes and certificates.
+                  Enter your credentials to access your quizzes and certificates.
                 </CardDescription>
               </CardHeader>
               
               <form onSubmit={handleStudentLogin}>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="studentName">Full Name</Label>
-                    <Input 
-                      id="studentName" 
-                      placeholder="Enter your full name"
-                      value={studentName}
-                      onChange={(e) => setStudentName(e.target.value)}
-                      required
-                    />
-                  </div>
-                  
                   <div className="space-y-2">
                     <Label htmlFor="studentId">Student ID</Label>
                     <Input 
@@ -156,6 +138,18 @@ const Login = () => {
                       placeholder="Enter your student ID"
                       value={studentId}
                       onChange={(e) => setStudentId(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="studentPassword">Password</Label>
+                    <Input 
+                      id="studentPassword" 
+                      type="password"
+                      placeholder="Enter your password"
+                      value={studentPassword}
+                      onChange={(e) => setStudentPassword(e.target.value)}
                       required
                     />
                   </div>
@@ -167,7 +161,7 @@ const Login = () => {
                     className="w-full"
                     disabled={isStudentLoggingIn}
                   >
-                    {isStudentLoggingIn ? "Logging in..." : "Continue as Student"}
+                    {isStudentLoggingIn ? "Logging in..." : "Login as Student"}
                   </Button>
                 </CardFooter>
               </form>
