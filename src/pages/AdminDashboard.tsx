@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/common/Navbar';
@@ -8,7 +9,7 @@ import StudentPerformanceList from '@/components/AdminComponents/StudentPerforma
 import PerformanceChart from '@/components/AdminComponents/PerformanceChart';
 import CertificateViewer from '@/components/AdminComponents/CertificateViewer';
 import { supabase } from '@/integrations/supabase/client';
-import { File, FileCheck, User } from 'lucide-react';
+import { File, FileCheck, User, Loader2 } from 'lucide-react';
 
 interface QuizCompletion {
   id: string;
@@ -65,7 +66,8 @@ const AdminDashboard = () => {
       // Fetch quiz completion count and average score
       const { data: quizData, error: quizError } = await supabase
         .from('quiz_completions')
-        .select('*');
+        .select('*')
+        .order('completed_at', { ascending: false });
       
       if (quizError) throw quizError;
       
@@ -81,8 +83,7 @@ const AdminDashboard = () => {
         // Get recent completions with student names
         const recentQuizzes = await Promise.all(
           quizData
-            .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())
-            .slice(0, 5)
+            .slice(0, 10) // Get the 10 most recent completions
             .map(async (quiz) => {
               const { data: studentData } = await supabase
                 .from('students')
@@ -179,7 +180,10 @@ const AdminDashboard = () => {
           <h2 className="text-xl font-semibold mb-4">Recent Quiz Completions</h2>
           
           {isLoading ? (
-            <p className="text-center py-4">Loading recent completions...</p>
+            <div className="flex justify-center items-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2">Loading recent completions...</span>
+            </div>
           ) : recentCompletions.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
@@ -207,7 +211,9 @@ const AdminDashboard = () => {
                         {new Date(completion.completed_at).toLocaleDateString('en-US', {
                           year: 'numeric',
                           month: 'short',
-                          day: 'numeric'
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
                         })}
                       </td>
                     </tr>
@@ -216,7 +222,10 @@ const AdminDashboard = () => {
               </table>
             </div>
           ) : (
-            <p className="text-center py-4 text-gray-500">No quiz completions found.</p>
+            <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+              <p className="text-gray-500">No quiz completions found.</p>
+              <p className="text-sm text-gray-400 mt-1">Students haven't completed any quizzes yet.</p>
+            </div>
           )}
         </div>
         
