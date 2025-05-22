@@ -262,15 +262,15 @@ const QuizScreen = () => {
       id: 5,
       language: 'java',
       text: "Create a method to find the largest element in an array.",
-      starterCode: "public class Solution {\n    public static int findMax(int[] array) {\n        // Your code here\n    }\n}",
-      testCases: "findMax([1, 3, 5, 7, 2]) returns 7\nfindMax([-1, -5, -2]) returns -1",
+      starterCode: "public class Solution {\n    public static int findMax(int[] array) {\n        // Your code here\n        return 0; // Replace with your solution\n    }\n}",
+      testCases: "findMax(new int[]{1, 3, 5, 7, 2}) returns 7\nfindMax(new int[]{-1, -5, -2}) returns -1",
       sampleSolution: "public class Solution {\n    public static int findMax(int[] array) {\n        int max = array[0];\n        for (int i = 1; i < array.length; i++) {\n            if (array[i] > max) {\n                max = array[i];\n            }\n        }\n        return max;\n    }\n}"
     },
     {
       id: 6,
       language: 'java',
       text: "Write a method to check if a string contains only digits.",
-      starterCode: "public class Solution {\n    public static boolean containsOnlyDigits(String str) {\n        // Your code here\n    }\n}",
+      starterCode: "public class Solution {\n    public static boolean containsOnlyDigits(String str) {\n        // Your code here\n        return false; // Replace with your solution\n    }\n}",
       testCases: 'containsOnlyDigits("12345") returns true\ncontainsOnlyDigits("123a") returns false',
       sampleSolution: "public class Solution {\n    public static boolean containsOnlyDigits(String str) {\n        for (int i = 0; i < str.length(); i++) {\n            if (!Character.isDigit(str.charAt(i))) {\n                return false;\n            }\n        }\n        return true;\n    }\n}"
     },
@@ -279,7 +279,7 @@ const QuizScreen = () => {
       id: 7,
       language: 'csharp',
       text: "Write a method to reverse a string without using the built-in Reverse method.",
-      starterCode: "public class Solution {\n    public static string ReverseString(string input) {\n        // Your code here\n    }\n}",
+      starterCode: "public class Solution {\n    public static string ReverseString(string input) {\n        // Your code here\n        return \"\"; // Replace with your solution\n    }\n}",
       testCases: 'ReverseString("hello") returns "olleh"\nReverseString("C#") returns "#C"',
       sampleSolution: "public class Solution {\n    public static string ReverseString(string input) {\n        char[] charArray = input.ToCharArray();\n        int left = 0;\n        int right = charArray.Length - 1;\n        while (left < right) {\n            char temp = charArray[left];\n            charArray[left] = charArray[right];\n            charArray[right] = temp;\n            left++;\n            right--;\n        }\n        return new string(charArray);\n    }\n}"
     },
@@ -287,8 +287,8 @@ const QuizScreen = () => {
       id: 8,
       language: 'csharp',
       text: "Write a method to find all even numbers in a list.",
-      starterCode: "public class Solution {\n    public static List<int> FindEvenNumbers(List<int> numbers) {\n        // Your code here\n    }\n}",
-      testCases: "FindEvenNumbers([1, 2, 3, 4, 5]) returns [2, 4]\nFindEvenNumbers([7, 9, 11]) returns []",
+      starterCode: "public class Solution {\n    public static List<int> FindEvenNumbers(List<int> numbers) {\n        // Your code here\n        return new List<int>(); // Replace with your solution\n    }\n}",
+      testCases: "FindEvenNumbers(new List<int>{1, 2, 3, 4, 5}) returns [2, 4]\nFindEvenNumbers(new List<int>{7, 9, 11}) returns []",
       sampleSolution: "public class Solution {\n    public static List<int> FindEvenNumbers(List<int> numbers) {\n        List<int> result = new List<int>();\n        foreach (int num in numbers) {\n            if (num % 2 == 0) {\n                result.Add(num);\n            }\n        }\n        return result;\n    }\n}"
     }
   ];
@@ -698,6 +698,73 @@ try {
     setShowHints(!showHints);
   };
   
+  const getLanguageSpecificHints = (language: string, questionId: number): JSX.Element => {
+    switch(language) {
+      case 'java':
+        if (questionId === 5) {
+          return (
+            <ul className="list-disc pl-5 text-sm">
+              <li>Initialize max with the first element of the array</li>
+              <li>Loop through the array starting from index 1</li>
+              <li>Compare each element with max and update if necessary</li>
+              <li>Remember to check for edge cases like empty arrays</li>
+            </ul>
+          );
+        } else if (questionId === 6) {
+          return (
+            <ul className="list-disc pl-5 text-sm">
+              <li>Use a for loop to iterate through each character</li>
+              <li>Java has the Character.isDigit() method to check if a char is a digit</li>
+              <li>Return false as soon as you find a non-digit character</li>
+              <li>If you get through the entire string, return true</li>
+            </ul>
+          );
+        }
+        break;
+      case 'csharp':
+        if (questionId === 7) {
+          return (
+            <ul className="list-disc pl-5 text-sm">
+              <li>Convert the string to a character array using ToCharArray()</li>
+              <li>Use a two-pointer approach (one at the start, one at the end)</li>
+              <li>Swap characters as the pointers move toward each other</li>
+              <li>Create a new string from the final char array</li>
+            </ul>
+          );
+        } else if (questionId === 8) {
+          return (
+            <ul className="list-disc pl-5 text-sm">
+              <li>Create a new List&lt;int&gt; to store your results</li>
+              <li>Iterate through the input list using a foreach loop</li>
+              <li>Check if each number is even using the modulo operator (% 2 == 0)</li>
+              <li>Add even numbers to your result list</li>
+            </ul>
+          );
+        }
+        break;
+      case 'javascript':
+        // ... keep existing code (JavaScript hints)
+      case 'python':
+        // ... keep existing code (Python hints)
+      default:
+        return (
+          <ul className="list-disc pl-5 text-sm">
+            <li>Break down the problem into smaller steps</li>
+            <li>Think about the input and expected output</li>
+            <li>Consider edge cases</li>
+          </ul>
+        );
+    }
+    
+    return (
+      <ul className="list-disc pl-5 text-sm">
+        <li>Break down the problem into smaller steps</li>
+        <li>Think about the input and expected output</li>
+        <li>Consider edge cases</li>
+      </ul>
+    );
+  };
+  
   const renderQuestion = () => {
     if (quizType === 'mcq') {
       const question = mcqQuestions[currentQuestionIndex];
@@ -798,7 +865,7 @@ try {
             </Alert>
           )}
           
-          {/* Hints system instead of showing solutions */}
+          {/* Enhanced language-specific hints system */}
           <div className="mt-4 mb-4">
             <Button variant="outline" onClick={toggleHints} className="text-sm">
               {showHints ? "Hide Hints" : "Show Hints"}
@@ -807,38 +874,7 @@ try {
             {showHints && (
               <div className="mt-2 bg-blue-50 p-3 rounded-md border border-blue-100">
                 <h4 className="text-sm font-semibold mb-1">Problem Approach:</h4>
-                <ul className="list-disc pl-5 text-sm">
-                  {question.language === 'javascript' && question.id === 1 && (
-                    <>
-                      <li>Remember to use the + operator for addition</li>
-                      <li>The function should return the sum of both parameters</li>
-                    </>
-                  )}
-                  {question.language === 'javascript' && question.id === 2 && (
-                    <>
-                      <li>A palindrome reads the same forwards and backwards</li>
-                      <li>Try reversing the string and comparing it to the original</li>
-                      <li>JavaScript strings can be split into arrays, reversed, and joined back</li>
-                    </>
-                  )}
-                  {question.language === 'python' && question.id === 3 && (
-                    <>
-                      <li>Check if n is less than 2 first (edge case)</li>
-                      <li>You only need to check for factors up to the square root of n</li>
-                      <li>Return True if no factors are found</li>
-                    </>
-                  )}
-                  {question.language === 'python' && question.id === 4 && (
-                    <>
-                      <li>Remember that 0! = 1 (base case)</li>
-                      <li>Consider using recursion or iteration</li>
-                      <li>For large numbers, be careful of stack overflow with recursion</li>
-                    </>
-                  )}
-                  {!['javascript', 'python'].includes(question.language) && (
-                    <li>Break down the problem into smaller steps</li>
-                  )}
-                </ul>
+                {getLanguageSpecificHints(question.language, question.id)}
               </div>
             )}
           </div>

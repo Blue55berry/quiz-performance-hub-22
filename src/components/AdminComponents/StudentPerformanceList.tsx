@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { Award, TrendingDown, TrendingUp } from "lucide-react";
 
 interface StudentPerformance {
   id: string;
@@ -20,6 +21,9 @@ interface StudentPerformance {
   roll_number: string;
   avgScore: number;
   completedQuizzes: number;
+  languages: string[];
+  highestScore: number;
+  lowestScore: number;
 }
 
 const StudentPerformanceList = () => {
@@ -27,6 +31,7 @@ const StudentPerformanceList = () => {
   const [performanceData, setPerformanceData] = useState<StudentPerformance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'highToLow' | 'lowToHigh'>('highToLow');
+  const [filterLanguage, setFilterLanguage] = useState<string>('all');
   
   useEffect(() => {
     fetchStudentPerformance();
@@ -60,7 +65,10 @@ const StudentPerformanceList = () => {
           roll_number: student.roll_number,
           scores: [],
           completedQuizzes: 0,
-          avgScore: 0
+          languages: [],
+          avgScore: 0,
+          highestScore: 0,
+          lowestScore: 100
         });
       });
       
@@ -70,6 +78,20 @@ const StudentPerformanceList = () => {
           const student = studentMap.get(quiz.student_id);
           student.scores.push(quiz.score);
           student.completedQuizzes += 1;
+          
+          // Extract language from quiz name (e.g., "JavaScript Quiz" -> "JavaScript")
+          const language = quiz.quiz_name.split(' ')[0];
+          if (!student.languages.includes(language)) {
+            student.languages.push(language);
+          }
+          
+          // Track highest and lowest scores
+          if (quiz.score > student.highestScore) {
+            student.highestScore = quiz.score;
+          }
+          if (quiz.score < student.lowestScore) {
+            student.lowestScore = quiz.score;
+          }
         }
       });
       
@@ -85,7 +107,10 @@ const StudentPerformanceList = () => {
             studentName: student.studentName,
             roll_number: student.roll_number,
             avgScore: avgScore,
-            completedQuizzes: student.completedQuizzes
+            completedQuizzes: student.completedQuizzes,
+            languages: student.languages,
+            highestScore: student.highestScore,
+            lowestScore: student.lowestScore === 100 && student.scores.length > 0 ? Math.min(...student.scores) : student.lowestScore
           };
         });
       
@@ -117,12 +142,31 @@ const StudentPerformanceList = () => {
     
     setPerformanceData(sortedData);
   };
+
+  const handleLanguageFilter = (language: string) => {
+    setFilterLanguage(language);
+    fetchStudentPerformance().then(() => {
+      if (language !== 'all') {
+        const filteredData = performanceData.filter(student => 
+          student.languages.includes(language)
+        );
+        setPerformanceData(filteredData);
+      }
+    });
+  };
   
   const getScoreColor = (score: number) => {
     if (score >= 90) return 'bg-green-100 text-green-800';
     if (score >= 80) return 'bg-blue-100 text-blue-800';
     if (score >= 70) return 'bg-yellow-100 text-yellow-800';
     return 'bg-red-100 text-red-800';
+  };
+
+  const getScoreBadge = (score: number) => {
+    if (score >= 90) return <Award className="inline-block w-4 h-4 mr-1 text-yellow-600" />;
+    if (score >= 80) return <TrendingUp className="inline-block w-4 h-4 mr-1 text-blue-600" />;
+    if (score >= 70) return null;
+    return <TrendingDown className="inline-block w-4 h-4 mr-1 text-red-600" />;
   };
   
   return (
@@ -158,8 +202,10 @@ const StudentPerformanceList = () => {
               <TableHead>Rank</TableHead>
               <TableHead>Student Name</TableHead>
               <TableHead>Roll Number</TableHead>
-              <TableHead>Average Score</TableHead>
+              <TableHead>Avg Score</TableHead>
+              <TableHead>Highest</TableHead>
               <TableHead>Quizzes Completed</TableHead>
+              <TableHead>Languages</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -172,10 +218,22 @@ const StudentPerformanceList = () => {
                   <TableCell>{student.roll_number}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreColor(student.avgScore)}`}>
-                      {student.avgScore}%
+                      {getScoreBadge(student.avgScore)}{student.avgScore}%
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreColor(student.highestScore)}`}>
+                      {student.highestScore}%
                     </span>
                   </TableCell>
                   <TableCell>{student.completedQuizzes}</TableCell>
+                  <TableCell>
+                    {student.languages.map(lang => (
+                      <Badge key={lang} variant="outline" className="mr-1 mb-1">
+                        {lang}
+                      </Badge>
+                    ))}
+                  </TableCell>
                   <TableCell>
                     {student.avgScore >= 80 ? (
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -191,7 +249,7 @@ const StudentPerformanceList = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">
+                <TableCell colSpan={8} className="text-center">
                   No student performance data available
                 </TableCell>
               </TableRow>
