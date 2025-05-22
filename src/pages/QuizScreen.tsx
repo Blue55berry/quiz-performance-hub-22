@@ -515,7 +515,7 @@ const QuizScreen = () => {
               // More specific test for the actual logic
               const containsCorrectLogic = code.includes('return a + b') || 
                                           code.includes('return (a + b)') ||
-                                          code.match(/return\s*\(?.*\+.*\)?/);
+                                          Boolean(code.match(/return\s*\(?.*\+.*\)?/));
                                           
               allTestsPassed = allTestsPassed && containsCorrectLogic;
             }
@@ -875,9 +875,21 @@ try {
         }
         break;
       case 'javascript':
-        // ... keep existing code (JavaScript hints)
+        return (
+          <ul className="list-disc pl-5 text-sm">
+            <li>Make sure your function is defined correctly</li>
+            <li>Check for edge cases in your logic</li>
+            <li>Use console.log to debug your code</li>
+          </ul>
+        );
       case 'python':
-        // ... keep existing code (Python hints)
+        return (
+          <ul className="list-disc pl-5 text-sm">
+            <li>Ensure your function is defined with 'def'</li>
+            <li>Check for indentation errors</li>
+            <li>Use print statements to debug your code</li>
+          </ul>
+        );
       default:
         return (
           <ul className="list-disc pl-5 text-sm">
