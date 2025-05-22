@@ -1,5 +1,5 @@
-
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/common/Navbar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -20,7 +20,8 @@ interface QuizCompletion {
 }
 
 const AdminDashboard = () => {
-  const [username] = useState('Admin');
+  const navigate = useNavigate();
+  const [username, setUsername] = useState('Admin');
   const [totalStudents, setTotalStudents] = useState(0);
   const [recentCompletions, setRecentCompletions] = useState<QuizCompletion[]>([]);
   const [quizCompletionCount, setQuizCompletionCount] = useState(0);
@@ -28,66 +29,83 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
-    // Fetch data from database
-    const fetchDashboardData = async () => {
-      try {
-        setIsLoading(true);
-        
-        // Fetch student count
-        const { count: studentCount, error: studentError } = await supabase
-          .from('students')
-          .select('*', { count: 'exact', head: true });
-        
-        if (studentError) throw studentError;
-        setTotalStudents(studentCount || 0);
-        
-        // Fetch quiz completion count and average score
-        const { data: quizData, error: quizError } = await supabase
-          .from('quiz_completions')
-          .select('*');
-        
-        if (quizError) throw quizError;
-        
-        if (quizData) {
-          setQuizCompletionCount(quizData.length);
-          
-          // Calculate average score
-          if (quizData.length > 0) {
-            const totalScore = quizData.reduce((sum, quiz) => sum + quiz.score, 0);
-            setAverageScore(Math.round(totalScore / quizData.length));
-          }
-          
-          // Get recent completions with student names
-          const recentQuizzes = await Promise.all(
-            quizData
-              .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())
-              .slice(0, 5)
-              .map(async (quiz) => {
-                const { data: studentData } = await supabase
-                  .from('students')
-                  .select('name')
-                  .eq('id', quiz.student_id)
-                  .single();
-                
-                return {
-                  ...quiz,
-                  studentName: studentData?.name || 'Unknown Student'
-                };
-              })
-          );
-          
-          setRecentCompletions(recentQuizzes);
+    // Check if admin is logged in
+    const checkAdminLogin = async () => {
+      const { data } = await supabase.auth.getSession();
+      const adminLoggedIn = localStorage.getItem('adminLoggedIn');
+      
+      if (!data.session && adminLoggedIn !== 'true') {
+        navigate('/login');
+      } else {
+        // Set admin name if available
+        const adminName = localStorage.getItem('adminName');
+        if (adminName) {
+          setUsername(adminName);
         }
-        
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setIsLoading(false);
       }
     };
     
+    checkAdminLogin();
     fetchDashboardData();
-  }, []);
+  }, [navigate]);
+  
+  // Fetch data from database
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Fetch student count
+      const { count: studentCount, error: studentError } = await supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true });
+      
+      if (studentError) throw studentError;
+      setTotalStudents(studentCount || 0);
+      
+      // Fetch quiz completion count and average score
+      const { data: quizData, error: quizError } = await supabase
+        .from('quiz_completions')
+        .select('*');
+      
+      if (quizError) throw quizError;
+      
+      if (quizData) {
+        setQuizCompletionCount(quizData.length);
+        
+        // Calculate average score
+        if (quizData.length > 0) {
+          const totalScore = quizData.reduce((sum, quiz) => sum + quiz.score, 0);
+          setAverageScore(Math.round(totalScore / quizData.length));
+        }
+        
+        // Get recent completions with student names
+        const recentQuizzes = await Promise.all(
+          quizData
+            .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())
+            .slice(0, 5)
+            .map(async (quiz) => {
+              const { data: studentData } = await supabase
+                .from('students')
+                .select('name')
+                .eq('id', quiz.student_id)
+                .single();
+              
+              return {
+                ...quiz,
+                studentName: studentData?.name || 'Unknown Student'
+              };
+            })
+        );
+        
+        setRecentCompletions(recentQuizzes);
+      }
+      
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Prepare chart data based on database values
   const getCompletionData = () => {

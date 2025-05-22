@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,19 @@ const Login = () => {
   // Login loading states
   const [isStudentLoggingIn, setIsStudentLoggingIn] = useState<boolean>(false);
   const [isAdminLoggingIn, setIsAdminLoggingIn] = useState<boolean>(false);
+  
+  useEffect(() => {
+    // Check if user is already logged in
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        // If admin is logged in, redirect to admin dashboard
+        navigate('/admin/dashboard');
+      }
+    };
+    
+    checkSession();
+  }, [navigate]);
   
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +70,8 @@ const Login = () => {
       
       // Store student info in localStorage
       localStorage.setItem('studentName', existingStudent.name);
-      localStorage.setItem('studentId', studentId);
+      localStorage.setItem('studentId', existingStudent.id);
+      localStorage.setItem('studentRollNumber', existingStudent.roll_number);
       
       toast({
         title: "Login Successful",
@@ -85,6 +99,23 @@ const Login = () => {
         throw new Error('Please fill in all fields');
       }
       
+      // For testing purposes - hardcoded admin credentials
+      // In a production environment, you would use proper authentication
+      if (adminEmail === 'admin@example.com' && adminPassword === 'admin123') {
+        // Set admin info in localStorage
+        localStorage.setItem('adminLoggedIn', 'true');
+        localStorage.setItem('adminName', 'Admin');
+        
+        toast({
+          title: "Admin Login Successful",
+          description: "Welcome to the Admin Dashboard!"
+        });
+        
+        navigate('/admin/dashboard');
+        return;
+      }
+      
+      // If hardcoded credentials don't match, try Supabase auth
       const { error } = await supabase.auth.signInWithPassword({
         email: adminEmail,
         password: adminPassword,
@@ -132,10 +163,10 @@ const Login = () => {
               <form onSubmit={handleStudentLogin}>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="studentId">Student ID</Label>
+                    <Label htmlFor="studentId">Roll Number</Label>
                     <Input 
                       id="studentId" 
-                      placeholder="Enter your student ID"
+                      placeholder="Enter your roll number"
                       value={studentId}
                       onChange={(e) => setStudentId(e.target.value)}
                       required
@@ -161,7 +192,7 @@ const Login = () => {
                     className="w-full"
                     disabled={isStudentLoggingIn}
                   >
-                    {isStudentLoggingIn ? "Logging in..." : "Login as Student"}
+                    {isStudentLoggingIn ? "Logging in..." : "Login"}
                   </Button>
                 </CardFooter>
               </form>
@@ -184,7 +215,7 @@ const Login = () => {
                     <Input 
                       id="adminEmail" 
                       type="email" 
-                      placeholder="Enter your email"
+                      placeholder="admin@example.com"
                       value={adminEmail}
                       onChange={(e) => setAdminEmail(e.target.value)}
                       required
@@ -196,11 +227,17 @@ const Login = () => {
                     <Input 
                       id="adminPassword" 
                       type="password" 
-                      placeholder="Enter your password"
+                      placeholder="••••••••"
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
                       required
                     />
+                  </div>
+                  
+                  <div className="text-sm text-muted-foreground">
+                    <p>Demo credentials:</p>
+                    <p>Email: admin@example.com</p>
+                    <p>Password: admin123</p>
                   </div>
                 </CardContent>
                 
@@ -210,7 +247,7 @@ const Login = () => {
                     className="w-full"
                     disabled={isAdminLoggingIn}
                   >
-                    {isAdminLoggingIn ? "Logging in..." : "Login as Admin"}
+                    {isAdminLoggingIn ? "Logging in..." : "Login"}
                   </Button>
                 </CardFooter>
               </form>

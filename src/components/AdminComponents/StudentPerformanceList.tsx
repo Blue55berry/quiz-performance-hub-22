@@ -10,10 +10,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Award, TrendingDown, TrendingUp } from "lucide-react";
+import { Award, TrendingDown, TrendingUp, Search } from "lucide-react";
 
 interface StudentPerformance {
   id: string;
@@ -29,9 +31,12 @@ interface StudentPerformance {
 const StudentPerformanceList = () => {
   const { toast } = useToast();
   const [performanceData, setPerformanceData] = useState<StudentPerformance[]>([]);
+  const [filteredData, setFilteredData] = useState<StudentPerformance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'highToLow' | 'lowToHigh'>('highToLow');
   const [filterLanguage, setFilterLanguage] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
   
   useEffect(() => {
     fetchStudentPerformance();
@@ -56,6 +61,7 @@ const StudentPerformanceList = () => {
       
       // Process and combine the data
       const studentMap = new Map();
+      const allLanguages = new Set<string>();
       
       // Initialize student map with all students
       studentData.forEach(student => {
@@ -68,7 +74,8 @@ const StudentPerformanceList = () => {
           languages: [],
           avgScore: 0,
           highestScore: 0,
-          lowestScore: 100
+          lowestScore: 100,
+          quizzes: [] // Track individual quizzes
         });
       });
       
@@ -81,9 +88,18 @@ const StudentPerformanceList = () => {
           
           // Extract language from quiz name (e.g., "JavaScript Quiz" -> "JavaScript")
           const language = quiz.quiz_name.split(' ')[0];
+          allLanguages.add(language);
+          
           if (!student.languages.includes(language)) {
             student.languages.push(language);
           }
+          
+          // Track individual quiz details
+          student.quizzes.push({
+            name: quiz.quiz_name,
+            score: quiz.score,
+            date: quiz.completed_at
+          });
           
           // Track highest and lowest scores
           if (quiz.score > student.highestScore) {
@@ -110,7 +126,8 @@ const StudentPerformanceList = () => {
             completedQuizzes: student.completedQuizzes,
             languages: student.languages,
             highestScore: student.highestScore,
-            lowestScore: student.lowestScore === 100 && student.scores.length > 0 ? Math.min(...student.scores) : student.lowestScore
+            lowestScore: student.lowestScore === 100 && student.scores.length > 0 ? Math.min(...student.scores) : student.lowestScore,
+            quizzes: student.quizzes
           };
         });
       
@@ -118,6 +135,8 @@ const StudentPerformanceList = () => {
       performanceList.sort((a, b) => b.avgScore - a.avgScore);
       
       setPerformanceData(performanceList);
+      setFilteredData(performanceList);
+      setAvailableLanguages(Array.from(allLanguages));
     } catch (error) {
       console.error('Error fetching performance data:', error);
       toast({
@@ -132,7 +151,7 @@ const StudentPerformanceList = () => {
   
   const handleSortChange = (sortDirection: 'highToLow' | 'lowToHigh') => {
     setSortBy(sortDirection);
-    const sortedData = [...performanceData];
+    const sortedData = [...filteredData];
     
     if (sortDirection === 'highToLow') {
       sortedData.sort((a, b) => b.avgScore - a.avgScore);
@@ -140,20 +159,42 @@ const StudentPerformanceList = () => {
       sortedData.sort((a, b) => a.avgScore - b.avgScore);
     }
     
-    setPerformanceData(sortedData);
+    setFilteredData(sortedData);
   };
 
-  const handleLanguageFilter = (language: string) => {
-    setFilterLanguage(language);
-    fetchStudentPerformance().then(() => {
-      if (language !== 'all') {
-        const filteredData = performanceData.filter(student => 
-          student.languages.includes(language)
-        );
-        setPerformanceData(filteredData);
-      }
-    });
+  const applyFilters = () => {
+    let filtered = [...performanceData];
+    
+    // Apply language filter
+    if (filterLanguage !== 'all') {
+      filtered = filtered.filter(student => 
+        student.languages.includes(filterLanguage)
+      );
+    }
+    
+    // Apply search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(student => 
+        student.studentName.toLowerCase().includes(query) ||
+        student.roll_number.toLowerCase().includes(query)
+      );
+    }
+    
+    // Apply sorting
+    if (sortBy === 'highToLow') {
+      filtered.sort((a, b) => b.avgScore - a.avgScore);
+    } else {
+      filtered.sort((a, b) => a.avgScore - b.avgScore);
+    }
+    
+    setFilteredData(filtered);
   };
+  
+  // Apply filters when search, language or sort changes
+  useEffect(() => {
+    applyFilters();
+  }, [searchQuery, filterLanguage, sortBy]);
   
   const getScoreColor = (score: number) => {
     if (score >= 90) return 'bg-green-100 text-green-800';
@@ -171,24 +212,51 @@ const StudentPerformanceList = () => {
   
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-4">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mb-4">
         <h3 className="text-xl font-semibold">Student Performance Rankings</h3>
         
-        <div className="flex space-x-2 mt-2 sm:mt-0">
-          <Button 
-            size="sm" 
-            variant={sortBy === 'highToLow' ? 'default' : 'outline'}
-            onClick={() => handleSortChange('highToLow')}
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+            <Input 
+              placeholder="Search students..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+          
+          <Select 
+            value={filterLanguage} 
+            onValueChange={(value) => setFilterLanguage(value)}
           >
-            Highest First
-          </Button>
-          <Button 
-            size="sm" 
-            variant={sortBy === 'lowToHigh' ? 'default' : 'outline'}
-            onClick={() => handleSortChange('lowToHigh')}
-          >
-            Lowest First
-          </Button>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue placeholder="Filter by language" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Languages</SelectItem>
+              {availableLanguages.map(lang => (
+                <SelectItem key={lang} value={lang}>{lang}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          <div className="flex space-x-2">
+            <Button 
+              size="sm" 
+              variant={sortBy === 'highToLow' ? 'default' : 'outline'}
+              onClick={() => handleSortChange('highToLow')}
+            >
+              Highest First
+            </Button>
+            <Button 
+              size="sm" 
+              variant={sortBy === 'lowToHigh' ? 'default' : 'outline'}
+              onClick={() => handleSortChange('lowToHigh')}
+            >
+              Lowest First
+            </Button>
+          </div>
         </div>
       </div>
       
@@ -210,8 +278,8 @@ const StudentPerformanceList = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {performanceData.length > 0 ? (
-              performanceData.map((student, index) => (
+            {filteredData.length > 0 ? (
+              filteredData.map((student, index) => (
                 <TableRow key={student.id}>
                   <TableCell className="font-medium">#{index + 1}</TableCell>
                   <TableCell>{student.studentName}</TableCell>
@@ -250,7 +318,9 @@ const StudentPerformanceList = () => {
             ) : (
               <TableRow>
                 <TableCell colSpan={8} className="text-center">
-                  No student performance data available
+                  {searchQuery || filterLanguage !== 'all' 
+                    ? "No students match the current filters"
+                    : "No student performance data available"}
                 </TableCell>
               </TableRow>
             )}
