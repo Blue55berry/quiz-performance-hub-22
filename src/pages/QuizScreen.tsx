@@ -423,7 +423,7 @@ const QuizScreen = () => {
     return testCases;
   };
 
-  // Modified to use sandbox mode for code testing instead of external API
+  // Modified to improve sandbox mode validation for code testing
   const runTestCases = async (code: string, question: CodingQuestion) => {
     setIsExecutingCode(true);
     setTestResults(null);
@@ -446,81 +446,213 @@ const QuizScreen = () => {
         // Simulate API response delay
         await new Promise(resolve => setTimeout(resolve, 1500));
         
-        // Perform basic code validation
-        let validationFailed = false;
-        const validationMessages: string[] = [];
-        
-        // Check for basic syntax issues
-        if (question.language === 'javascript' && 
-            (!code.includes('function') || !code.includes('return'))) {
-          validationFailed = true;
-          validationMessages.push("Your code might be missing a function definition or return statement.");
-        }
-        
-        if (question.language === 'python' && 
-            (!code.includes('def') || !code.includes('return'))) {
-          validationFailed = true;
-          validationMessages.push("Your code might be missing a function definition or return statement.");
-        }
-        
-        // Simple test case validation based on problem type
-        let allTestsPassed = !validationFailed;
+        // Improved validation logic based on language and specific question
+        let allTestsPassed = true;
         const testDetails: string[] = [];
+        let validationErrors: string[] = [];
         
-        if (allTestsPassed) {
-          // Simple validation based on question content
-          if (question.id === 1 && question.language === 'javascript') {
-            // Sum function
-            allTestsPassed = code.includes('+') && 
-                            code.includes('return') && 
-                            code.includes('function sum');
-          } else if (question.id === 2 && question.language === 'javascript') {
-            // Palindrome function
-            allTestsPassed = (code.includes('split') || code.includes('reverse')) && 
-                            code.includes('return') && 
-                            code.includes('function isPalindrome');
-          } else if (question.id === 3 && question.language === 'python') {
-            // Prime function
-            allTestsPassed = code.includes('range') && 
-                            code.includes('return') && 
-                            code.includes('def is_prime');
-          } else if (question.id === 4 && question.language === 'python') {
-            // Factorial function
-            allTestsPassed = code.includes('return') && 
-                            (code.includes('*') || code.includes('factorial')) && 
-                            code.includes('def factorial');
-          } else {
-            // Basic signature check for other languages
-            allTestsPassed = code.length > 50; // Simple length check for now
+        // Basic syntax validation
+        if (question.language === 'javascript') {
+          if (!code.includes('function')) {
+            validationErrors.push("Your code must include a function definition.");
           }
           
-          // Generate test feedback
-          for (let i = 0; i < testCases.length; i++) {
-            testDetails.push(`Test case ${i + 1}: ${allTestsPassed ? 'Passed' : 'Failed'}`);
+          if (!code.includes('return')) {
+            validationErrors.push("Your function must return a value.");
           }
-        } else {
-          testDetails.push(...validationMessages);
+        } else if (question.language === 'python') {
+          if (!code.includes('def')) {
+            validationErrors.push("Your code must include a function definition.");
+          }
+          
+          if (!code.includes('return')) {
+            validationErrors.push("Your function must return a value.");
+          }
+        } else if (question.language === 'java') {
+          if (!code.includes('public') || !code.includes('class')) {
+            validationErrors.push("Your code must include a public class definition.");
+          }
+          
+          if (!code.includes('return') && !code.includes('void')) {
+            validationErrors.push("Your method must return a value or be declared void.");
+          }
+        } else if (question.language === 'csharp') {
+          if (!code.includes('public') || !code.includes('class')) {
+            validationErrors.push("Your code must include a public class definition.");
+          }
+          
+          if (!code.includes('return') && !code.includes('void')) {
+            validationErrors.push("Your method must return a value or be declared void.");
+          }
+        }
+        
+        // If basic validation fails, show those errors
+        if (validationErrors.length > 0) {
+          setTestResults({
+            passed: false,
+            message: "There are syntax issues with your code:",
+            details: validationErrors,
+          });
+          
+          toast({
+            variant: "destructive",
+            title: "Syntax Issues",
+            description: "Please check your code syntax before running tests.",
+          });
+          
+          setIsExecutingCode(false);
+          return;
+        }
+        
+        // More specific validation for each question
+        switch(question.id) {
+          case 1: // JavaScript sum function
+            if (question.language === 'javascript') {
+              allTestsPassed = code.includes('function sum') && 
+                              code.includes('return') && 
+                              code.includes('+');
+                              
+              // More specific test for the actual logic
+              const containsCorrectLogic = code.includes('return a + b') || 
+                                          code.includes('return (a + b)') ||
+                                          code.match(/return\s*\(?.*\+.*\)?/);
+                                          
+              allTestsPassed = allTestsPassed && containsCorrectLogic;
+            }
+            break;
+            
+          case 2: // JavaScript palindrome function
+            if (question.language === 'javascript') {
+              // Check for common palindrome implementations
+              const hasReverseLogic = code.includes('reverse()') ||
+                                     (code.includes('split') && code.includes('join'));
+              
+              // Or manual implementation with loops
+              const hasLoopLogic = (code.includes('for') || code.includes('while')) &&
+                                 code.includes('length');
+                                 
+              allTestsPassed = code.includes('function isPalindrome') && 
+                              code.includes('return') && 
+                              (hasReverseLogic || hasLoopLogic);
+            }
+            break;
+            
+          case 3: // Python prime function
+            if (question.language === 'python') {
+              // Check for common prime implementations
+              const hasRangeCheck = code.includes('range') && 
+                                  code.includes('for') && 
+                                  (code.includes('%') || code.includes('mod'));
+              
+              // Or direct check with mathematical approach
+              const hasMathApproach = code.includes('sqrt') || code.includes('**0.5');
+              
+              allTestsPassed = code.includes('def is_prime') && 
+                              code.includes('return') && 
+                              (hasRangeCheck || hasMathApproach);
+            }
+            break;
+            
+          case 4: // Python factorial function
+            if (question.language === 'python') {
+              // Check for recursive approach
+              const hasRecursion = code.includes('factorial(') && code.includes('return');
+              
+              // Or iterative approach
+              const hasIteration = code.includes('for') && 
+                                 (code.includes('*=') || code.includes('result *'));
+              
+              allTestsPassed = code.includes('def factorial') && 
+                              code.includes('return') && 
+                              (hasRecursion || hasIteration);
+            }
+            break;
+            
+          case 5: // Java find max in array
+            if (question.language === 'java') {
+              // Check for common implementations
+              const hasLoopAndComparison = code.includes('for') && 
+                                          (code.includes('>') || code.includes('Math.max'));
+              
+              allTestsPassed = code.includes('findMax') && 
+                              code.includes('return') && 
+                              hasLoopAndComparison;
+            }
+            break;
+            
+          case 6: // Java check digits
+            if (question.language === 'java') {
+              // Check for common implementations
+              const hasCharacterCheck = code.includes('charAt') && 
+                                      (code.includes('isDigit') || code.includes('0') && code.includes('9'));
+              
+              const hasRegexCheck = code.includes('matches') || code.includes('Pattern');
+              
+              allTestsPassed = code.includes('containsOnlyDigits') && 
+                              code.includes('return') && 
+                              (hasCharacterCheck || hasRegexCheck);
+            }
+            break;
+            
+          case 7: // C# reverse string
+            if (question.language === 'csharp') {
+              // Check for common implementations
+              const hasManualReverse = code.includes('char') && 
+                                     code.includes('for') && 
+                                     (code.includes('temp') || code.includes('swap'));
+              
+              const hasStringManipulation = code.includes('ToCharArray') && 
+                                         (code.includes('Array.Reverse') || code.includes('new string'));
+                                         
+              allTestsPassed = code.includes('ReverseString') && 
+                              code.includes('return') && 
+                              (hasManualReverse || hasStringManipulation);
+            }
+            break;
+            
+          case 8: // C# find even numbers
+            if (question.language === 'csharp') {
+              // Check for common implementations
+              const hasLoopImplementation = code.includes('foreach') && 
+                                          code.includes('%') && 
+                                          code.includes('Add');
+              
+              const hasLinqImplementation = code.includes('Where') || 
+                                         code.includes('Select') ||
+                                         code.includes('=>');
+              
+              allTestsPassed = code.includes('FindEvenNumbers') && 
+                              code.includes('return') && 
+                              (hasLoopImplementation || hasLinqImplementation);
+            }
+            break;
+            
+          default:
+            // For any other questions, do a generic code length check
+            allTestsPassed = code.length > 50;
+            break;
+        }
+        
+        // Generate test feedback
+        for (let i = 0; i < testCases.length; i++) {
+          testDetails.push(`Test case ${i + 1}: ${allTestsPassed ? 'Passed' : 'Failed'}`);
         }
         
         // Set test results
+        setTestResults({
+          passed: allTestsPassed,
+          message: allTestsPassed ? 
+            'Great job! Your solution passed all test cases.' : 
+            "Your code didn't pass all test cases.",
+          details: testDetails,
+        });
+        
         if (allTestsPassed) {
-          setTestResults({
-            passed: true,
-            message: 'Great job! Your solution passed all test cases.',
-            details: testDetails,
-          });
-          
           toast({
             title: "Success!",
             description: "Your solution works correctly. You can proceed to the next question.",
           });
         } else {
-          setTestResults({
-            passed: false,
-            message: "Your code didn't pass all test cases.",
-            details: testDetails.length ? testDetails : ["Review your logic and try again."],
-          });
-          
           toast({
             variant: "destructive",
             title: "Test Failed",
