@@ -8,8 +8,9 @@ import StudentList from '@/components/AdminComponents/StudentList';
 import StudentPerformanceList from '@/components/AdminComponents/StudentPerformanceList';
 import PerformanceChart from '@/components/AdminComponents/PerformanceChart';
 import CertificateViewer from '@/components/AdminComponents/CertificateViewer';
+import CertificateStats from '@/components/AdminComponents/CertificateStats';
 import { supabase } from '@/integrations/supabase/client';
-import { File, FileCheck, User, Loader2 } from 'lucide-react';
+import { File, FileCheck, User, Loader2, Award } from 'lucide-react';
 
 interface QuizCompletion {
   id: string;
@@ -28,6 +29,7 @@ const AdminDashboard = () => {
   const [quizCompletionCount, setQuizCompletionCount] = useState(0);
   const [averageScore, setAverageScore] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [certificateCount, setCertificateCount] = useState(0);
   
   useEffect(() => {
     // Check if admin is logged in
@@ -101,6 +103,14 @@ const AdminDashboard = () => {
         setRecentCompletions(recentQuizzes);
       }
       
+      // Fetch certificate count
+      const { count: certCount, error: certError } = await supabase
+        .from('certificates')
+        .select('*', { count: 'exact', head: true });
+        
+      if (certError) throw certError;
+      setCertificateCount(certCount || 0);
+      
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -151,7 +161,7 @@ const AdminDashboard = () => {
       <main className="flex-1 container mx-auto p-4 md:p-6">
         <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
           <Card className="p-4">
             <div className="flex items-center mb-2">
               <FileCheck className="h-6 w-6 text-primary mr-2" />
@@ -172,6 +182,13 @@ const AdminDashboard = () => {
               <div className="text-2xl font-bold">{totalStudents}</div>
             </div>
             <div className="text-gray-500 text-sm">Registered Students</div>
+          </Card>
+          <Card className="p-4">
+            <div className="flex items-center mb-2">
+              <Award className="h-6 w-6 text-primary mr-2" />
+              <div className="text-2xl font-bold">{certificateCount}</div>
+            </div>
+            <div className="text-gray-500 text-sm">Issued Certificates</div>
           </Card>
         </div>
 
@@ -263,7 +280,10 @@ const AdminDashboard = () => {
           </TabsContent>
           
           <TabsContent value="certificates">
-            <CertificateViewer />
+            <div className="space-y-6">
+              <CertificateStats />
+              <CertificateViewer />
+            </div>
           </TabsContent>
         </Tabs>
       </main>

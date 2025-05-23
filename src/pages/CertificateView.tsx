@@ -4,7 +4,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '@/components/common/Navbar';
 import { Button } from "@/components/ui/button";
 import { supabase } from '@/integrations/supabase/client';
-import { Award, FileCheck, Download, Save } from 'lucide-react';
+import { Award, FileCheck, Download, Save, CheckCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CertificateView = () => {
@@ -16,6 +16,7 @@ const CertificateView = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showDownloadToast, setShowDownloadToast] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [savingError, setSavingError] = useState('');
   const [certificateData, setCertificateData] = useState({
     name: "",
     course: "",
@@ -124,6 +125,7 @@ const CertificateView = () => {
 
   const handleSaveCertificate = async () => {
     try {
+      setSavingError('');
       setIsGenerating(true);
       const studentId = localStorage.getItem('studentId');
       
@@ -174,7 +176,10 @@ const CertificateView = () => {
           student_id: studentId,
           title: certificateData.course,
           file_url: null, // In a real app, this would be the URL to the generated PDF
-          verified: true // Auto-verify certificates generated directly from the app
+          file_path: null, 
+          verified: true, // Auto-verify certificates generated directly from the app
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         });
       
       if (error) throw error;
@@ -190,8 +195,9 @@ const CertificateView = () => {
       setTimeout(() => {
         navigate('/student/dashboard');
       }, 2000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving certificate:', error);
+      setSavingError('Failed to save certificate. Please try again.');
       toast({
         variant: "destructive",
         title: "Error",
@@ -242,6 +248,7 @@ const CertificateView = () => {
             <Button 
               onClick={handleSaveCertificate} 
               disabled={isGenerating || !isPassingGrade || isSaved}
+              className={isSaved ? "bg-green-600 hover:bg-green-700" : ""}
             >
               {isGenerating ? (
                 <>
@@ -253,8 +260,17 @@ const CertificateView = () => {
                 </>
               ) : (
                 <>
-                  <Save className="mr-2 h-4 w-4" /> 
-                  {isSaved ? "Already Saved" : "Save to My Certificates"}
+                  {isSaved ? (
+                    <>
+                      <CheckCircle className="mr-2 h-4 w-4" /> 
+                      Saved to My Certificates
+                    </>
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" /> 
+                      Save to My Certificates
+                    </>
+                  )}
                 </>
               )}
             </Button>
@@ -313,6 +329,12 @@ const CertificateView = () => {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+        
+        {savingError && (
+          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 p-3 rounded-md">
+            {savingError}
           </div>
         )}
         
