@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
-import { Award, TrendingDown, TrendingUp, Search } from "lucide-react";
+import { Award, TrendingDown, TrendingUp, Search, RefreshCw } from "lucide-react";
 
 interface StudentPerformance {
   id: string;
@@ -33,6 +33,7 @@ const StudentPerformanceList = () => {
   const [performanceData, setPerformanceData] = useState<StudentPerformance[]>([]);
   const [filteredData, setFilteredData] = useState<StudentPerformance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [sortBy, setSortBy] = useState<'highToLow' | 'lowToHigh'>('highToLow');
   const [filterLanguage, setFilterLanguage] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -146,7 +147,17 @@ const StudentPerformanceList = () => {
       });
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+  
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchStudentPerformance();
+    toast({
+      title: "Refreshing data",
+      description: "Loading the latest student performance data."
+    });
   };
   
   const handleSortChange = (sortDirection: 'highToLow' | 'lowToHigh') => {
@@ -213,7 +224,13 @@ const StudentPerformanceList = () => {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mb-4">
-        <h3 className="text-xl font-semibold">Student Performance Rankings</h3>
+        <div className="flex items-center">
+          <h3 className="text-xl font-semibold mr-2">Student Performance Rankings</h3>
+          <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="sr-only">Refresh data</span>
+          </Button>
+        </div>
         
         <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
           <div className="relative w-full sm:w-64">
@@ -261,7 +278,13 @@ const StudentPerformanceList = () => {
       </div>
       
       {isLoading ? (
-        <div className="text-center py-8">Loading performance data...</div>
+        <div className="text-center py-8">
+          <svg className="animate-spin h-8 w-8 text-primary mx-auto mb-4" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p>Loading performance data...</p>
+        </div>
       ) : (
         <Table>
           <TableCaption>Student performance ranked by average score</TableCaption>

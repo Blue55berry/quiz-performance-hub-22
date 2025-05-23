@@ -4,7 +4,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '@/components/common/Navbar';
 import { Button } from "@/components/ui/button";
 import { supabase } from '@/integrations/supabase/client';
-import { Award, FileCheck } from 'lucide-react';
+import { Award, FileCheck, Download, Save } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
 const CertificateView = () => {
@@ -15,6 +15,7 @@ const CertificateView = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showDownloadToast, setShowDownloadToast] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const [certificateData, setCertificateData] = useState({
     name: "",
     course: "",
@@ -83,6 +84,18 @@ const CertificateView = () => {
               date: new Date(data.completed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
               id: id || data.id
             });
+            
+            // Check if certificate is already saved
+            const { data: existingCert } = await supabase
+              .from('certificates')
+              .select('*')
+              .eq('student_id', studentId)
+              .eq('title', data.quiz_name)
+              .single();
+              
+            if (existingCert) {
+              setIsSaved(true);
+            }
           }
         } catch (error) {
           console.error('Error:', error);
@@ -102,6 +115,11 @@ const CertificateView = () => {
       title: "Certificate download started",
       description: "Your certificate is being prepared for download."
     });
+    
+    // Hide toast after 3 seconds
+    setTimeout(() => {
+      setShowDownloadToast(false);
+    }, 3000);
   };
 
   const handleSaveCertificate = async () => {
@@ -131,6 +149,24 @@ const CertificateView = () => {
         return;
       }
       
+      // Check for existing certificate to avoid duplicates
+      const { data: existingCert, error: checkError } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('student_id', studentId)
+        .eq('title', certificateData.course)
+        .single();
+        
+      if (!checkError && existingCert) {
+        toast({
+          title: "Certificate already saved",
+          description: "This certificate is already in your collection.",
+        });
+        setIsGenerating(false);
+        setIsSaved(true);
+        return;
+      }
+      
       // In a real app, we'd generate a PDF and save its URL
       const { error } = await supabase
         .from('certificates')
@@ -138,10 +174,12 @@ const CertificateView = () => {
           student_id: studentId,
           title: certificateData.course,
           file_url: null, // In a real app, this would be the URL to the generated PDF
-          verified: false
+          verified: true // Auto-verify certificates generated directly from the app
         });
       
       if (error) throw error;
+      
+      setIsSaved(true);
       
       toast({
         title: "Certificate saved",
@@ -198,9 +236,27 @@ const CertificateView = () => {
           <h1 className="text-2xl font-bold">Your Certificate</h1>
           <div className="space-x-2">
             <Button variant="outline" onClick={handleBack}>Back to Dashboard</Button>
-            <Button onClick={handleDownload} disabled={!isPassingGrade}>Download PDF</Button>
-            <Button onClick={handleSaveCertificate} disabled={isGenerating || !isPassingGrade}>
-              {isGenerating ? "Saving..." : "Save to My Certificates"}
+            <Button onClick={handleDownload} disabled={!isPassingGrade}>
+              <Download className="mr-2 h-4 w-4" /> Download PDF
+            </Button>
+            <Button 
+              onClick={handleSaveCertificate} 
+              disabled={isGenerating || !isPassingGrade || isSaved}
+            >
+              {isGenerating ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" /> 
+                  {isSaved ? "Already Saved" : "Save to My Certificates"}
+                </>
+              )}
             </Button>
           </div>
         </div>
