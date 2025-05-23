@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Award, TrendingDown, TrendingUp, Search, RefreshCw } from "lucide-react";
@@ -51,8 +51,17 @@ const StudentPerformanceList = () => {
           schema: 'public', 
           table: 'quiz_completions' 
         }, 
-        () => {
-          console.log('Quiz completion changes detected, refreshing performance data...');
+        (payload) => {
+          console.log('Quiz completion changes detected, refreshing performance data...', payload);
+          
+          // Show toast notification for new quiz completions
+          if (payload.eventType === 'INSERT') {
+            toast({
+              title: "New Quiz Completion",
+              description: "A student has completed a quiz. Updating performance data."
+            });
+          }
+          
           fetchStudentPerformance();
         }
       )
