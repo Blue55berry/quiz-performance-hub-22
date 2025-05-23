@@ -1,13 +1,14 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Award, Users, ArrowUpRight, Loader2 } from "lucide-react";
+import { Award, Users, ArrowUpRight, Loader2, TrendingUp } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 
 const CertificateStats = () => {
   const [totalCertificates, setTotalCertificates] = useState<number>(0);
   const [verifiedCertificates, setVerifiedCertificates] = useState<number>(0);
   const [studentsWithCertificates, setStudentsWithCertificates] = useState<number>(0);
+  const [recentCertificates, setRecentCertificates] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
   useEffect(() => {
@@ -22,8 +23,8 @@ const CertificateStats = () => {
           schema: 'public', 
           table: 'certificates' 
         }, 
-        () => {
-          console.log('Certificate changes detected, refreshing stats...');
+        (payload) => {
+          console.log('Certificate changes detected, refreshing stats...', payload);
           fetchCertificateStats();
         }
       )
@@ -60,12 +61,24 @@ const CertificateStats = () => {
         
       if (studentsError) throw studentsError;
       
+      // Get recent certificates (last 7 days)
+      const lastWeekDate = new Date();
+      lastWeekDate.setDate(lastWeekDate.getDate() - 7);
+      
+      const { count: recentCount, error: recentError } = await supabase
+        .from('certificates')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', lastWeekDate.toISOString());
+      
+      if (recentError) throw recentError;
+      
       // Count unique student IDs
       const uniqueStudentIds = new Set(studentsData?.map(cert => cert.student_id));
       
       setTotalCertificates(certCount || 0);
       setVerifiedCertificates(verifiedCount || 0);
       setStudentsWithCertificates(uniqueStudentIds.size);
+      setRecentCertificates(recentCount || 0);
     } catch (error) {
       console.error('Error fetching certificate stats:', error);
     } finally {
@@ -74,7 +87,7 @@ const CertificateStats = () => {
   };
   
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Certificates</CardTitle>
@@ -149,6 +162,26 @@ const CertificateStats = () => {
           )}
           <CardDescription className="text-xs text-gray-500 mt-1">
             Unique students who uploaded certificates
+          </CardDescription>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Recent Uploads</CardTitle>
+          <TrendingUp className="h-4 w-4 text-primary" />
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              <span>Loading...</span>
+            </div>
+          ) : (
+            <div className="text-2xl font-bold">{recentCertificates}</div>
+          )}
+          <CardDescription className="text-xs text-gray-500 mt-1">
+            Certificates uploaded in the last 7 days
           </CardDescription>
         </CardContent>
       </Card>

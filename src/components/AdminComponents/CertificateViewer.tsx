@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,9 +38,17 @@ const CertificateViewer = () => {
           schema: 'public', 
           table: 'certificates' 
         }, 
-        () => {
-          console.log('Certificate changes detected, refreshing data...');
+        (payload) => {
+          console.log('Certificate changes detected, refreshing data...', payload);
           fetchCertificates();
+          
+          // Show toast for new certificates
+          if (payload.eventType === 'INSERT') {
+            toast({
+              title: "New certificate uploaded",
+              description: "A student has uploaded a new certificate"
+            });
+          }
         }
       )
       .subscribe();
