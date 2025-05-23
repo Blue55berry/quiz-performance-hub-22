@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Award, Users, ArrowUpRight } from "lucide-react";
+import { Award, Users, ArrowUpRight, Loader2 } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
 
 const CertificateStats = () => {
@@ -11,47 +11,67 @@ const CertificateStats = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
   useEffect(() => {
-    const fetchCertificateStats = async () => {
-      try {
-        setIsLoading(true);
-        
-        // Get total certificates
-        const { count: certCount, error: certError } = await supabase
-          .from('certificates')
-          .select('*', { count: 'exact', head: true });
-          
-        if (certError) throw certError;
-        
-        // Get verified certificates
-        const { count: verifiedCount, error: verifiedError } = await supabase
-          .from('certificates')
-          .select('*', { count: 'exact', head: true })
-          .eq('verified', true);
-          
-        if (verifiedError) throw verifiedError;
-        
-        // Get unique students with certificates
-        const { data: studentsData, error: studentsError } = await supabase
-          .from('certificates')
-          .select('student_id');
-          
-        if (studentsError) throw studentsError;
-        
-        // Count unique student IDs
-        const uniqueStudentIds = new Set(studentsData?.map(cert => cert.student_id));
-        
-        setTotalCertificates(certCount || 0);
-        setVerifiedCertificates(verifiedCount || 0);
-        setStudentsWithCertificates(uniqueStudentIds.size);
-      } catch (error) {
-        console.error('Error fetching certificate stats:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     fetchCertificateStats();
+    
+    // Subscribe to changes on the certificates table
+    const subscription = supabase
+      .channel('certificate-stats-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'certificates' 
+        }, 
+        () => {
+          console.log('Certificate changes detected, refreshing stats...');
+          fetchCertificateStats();
+        }
+      )
+      .subscribe();
+      
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+  
+  const fetchCertificateStats = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Get total certificates
+      const { count: certCount, error: certError } = await supabase
+        .from('certificates')
+        .select('*', { count: 'exact', head: true });
+        
+      if (certError) throw certError;
+      
+      // Get verified certificates
+      const { count: verifiedCount, error: verifiedError } = await supabase
+        .from('certificates')
+        .select('*', { count: 'exact', head: true })
+        .eq('verified', true);
+        
+      if (verifiedError) throw verifiedError;
+      
+      // Get unique students with certificates
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('certificates')
+        .select('student_id');
+        
+      if (studentsError) throw studentsError;
+      
+      // Count unique student IDs
+      const uniqueStudentIds = new Set(studentsData?.map(cert => cert.student_id));
+      
+      setTotalCertificates(certCount || 0);
+      setVerifiedCertificates(verifiedCount || 0);
+      setStudentsWithCertificates(uniqueStudentIds.size);
+    } catch (error) {
+      console.error('Error fetching certificate stats:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -62,11 +82,20 @@ const CertificateStats = () => {
         </CardHeader>
         <CardContent>
           <div className="flex items-center">
-            <div className="text-2xl font-bold">{isLoading ? '...' : totalCertificates}</div>
-            <div className="ml-auto text-xs text-gray-500">All time</div>
+            {isLoading ? (
+              <div className="flex items-center">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <span>Loading...</span>
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{totalCertificates}</div>
+                <div className="ml-auto text-xs text-gray-500">All time</div>
+              </>
+            )}
           </div>
           <CardDescription className="text-xs text-gray-500 mt-1">
-            Total certificates issued to students
+            Total certificates uploaded by students
           </CardDescription>
         </CardContent>
       </Card>
@@ -80,17 +109,26 @@ const CertificateStats = () => {
         </CardHeader>
         <CardContent>
           <div className="flex items-center">
-            <div className="text-2xl font-bold">{isLoading ? '...' : verifiedCertificates}</div>
-            <div className="ml-auto">
-              {totalCertificates > 0 && !isLoading && (
-                <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full">
-                  {Math.round((verifiedCertificates / totalCertificates) * 100)}%
-                </span>
-              )}
-            </div>
+            {isLoading ? (
+              <div className="flex items-center">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <span>Loading...</span>
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{verifiedCertificates}</div>
+                <div className="ml-auto">
+                  {totalCertificates > 0 && (
+                    <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                      {Math.round((verifiedCertificates / totalCertificates) * 100)}%
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           <CardDescription className="text-xs text-gray-500 mt-1">
-            Certificates that have been verified
+            Certificates that have been verified by admins
           </CardDescription>
         </CardContent>
       </Card>
@@ -101,11 +139,16 @@ const CertificateStats = () => {
           <Users className="h-4 w-4 text-primary" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">
-            {isLoading ? '...' : studentsWithCertificates}
-          </div>
+          {isLoading ? (
+            <div className="flex items-center">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              <span>Loading...</span>
+            </div>
+          ) : (
+            <div className="text-2xl font-bold">{studentsWithCertificates}</div>
+          )}
           <CardDescription className="text-xs text-gray-500 mt-1">
-            Unique students who earned certificates
+            Unique students who uploaded certificates
           </CardDescription>
         </CardContent>
       </Card>

@@ -41,6 +41,26 @@ const StudentPerformanceList = () => {
   
   useEffect(() => {
     fetchStudentPerformance();
+    
+    // Subscribe to changes on the quiz_completions table
+    const subscription = supabase
+      .channel('quiz-completion-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'quiz_completions' 
+        }, 
+        () => {
+          console.log('Quiz completion changes detected, refreshing performance data...');
+          fetchStudentPerformance();
+        }
+      )
+      .subscribe();
+      
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
   
   const fetchStudentPerformance = async () => {
@@ -49,7 +69,8 @@ const StudentPerformanceList = () => {
       // Fetch quiz completions data
       const { data: quizData, error: quizError } = await supabase
         .from('quiz_completions')
-        .select('*');
+        .select('*')
+        .order('completed_at', { ascending: false });
         
       if (quizError) throw quizError;
       

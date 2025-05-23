@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/use-toast";
-import { Search, Award, CheckCircle, XCircle, Loader2, FileBadge } from "lucide-react";
+import { Search, Award, CheckCircle, XCircle, Loader2, FileBadge, RefreshCw, Clock } from "lucide-react";
 
 interface Certificate {
   id: string;
@@ -26,8 +26,29 @@ const CertificateViewer = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Set up real-time subscription to certificates table
   useEffect(() => {
     fetchCertificates();
+    
+    // Subscribe to changes on the certificates table
+    const subscription = supabase
+      .channel('certificate-changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'certificates' 
+        }, 
+        () => {
+          console.log('Certificate changes detected, refreshing data...');
+          fetchCertificates();
+        }
+      )
+      .subscribe();
+      
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
   
   const fetchCertificates = async () => {
@@ -164,11 +185,36 @@ const CertificateViewer = () => {
     }
   };
   
+  // Format date helper
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  
+  const viewCertificate = (url: string | null) => {
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Certificate file not available"
+      });
+    }
+  };
+  
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold">Student Certificates</h2>
         <Button onClick={handleRefresh} variant="outline" size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
       </div>
@@ -203,11 +249,23 @@ const CertificateViewer = () => {
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="text-sm text-gray-600 mb-3">
-                  <p>Issued on: {new Date(cert.created_at).toLocaleDateString()}</p>
+                  <div className="flex items-center mb-2">
+                    <Clock className="mr-2 h-4 w-4 text-gray-400" />
+                    <p>Uploaded on: {formatDate(cert.created_at)}</p>
+                  </div>
                   <p>Certificate ID: {cert.id.substring(0, 8)}...</p>
                 </div>
                 
                 <div className="flex flex-col space-y-2 mt-4">
+                  <Button 
+                    size="sm" 
+                    onClick={() => viewCertificate(cert.file_url)}
+                    className="w-full"
+                  >
+                    <Award className="mr-2 h-4 w-4" />
+                    View Certificate
+                  </Button>
+                  
                   <Button 
                     size="sm" 
                     variant="outline"
