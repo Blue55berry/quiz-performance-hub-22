@@ -139,7 +139,7 @@ const CertificateUploader = ({ studentId, onUploadComplete }: CertificateUploade
           onChange={handleFileChange}
         />
         <p className="text-xs text-gray-500">
-          Accepted formats: PDF, JPG, JPEG, PNG (Max size: 5MB)
+          Accepted formats: PDF (Max size: 5MB)
         </p>
       </div>
       

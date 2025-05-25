@@ -234,11 +234,11 @@ const Login = () => {
                     />
                   </div>
                   
-                  <div className="text-sm text-muted-foreground">
+                  {/* <div className="text-sm text-muted-foreground">
                     <p>Demo credentials:</p>
                     <p>Email: admin@example.com</p>
                     <p>Password: admin123</p>
-                  </div>
+                  </div> */}
                 </CardContent>
                 
                 <CardFooter>

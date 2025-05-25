@@ -18,7 +18,7 @@ const Index = () => {
       <main className="flex-1 flex flex-col items-center justify-center p-4">
         <div className="max-w-4xl w-full mx-auto animate-fade-in text-center mb-10">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Quiz Performance Hub
+            Student Assessment Selection Portal
           </h1>
           <p className="text-xl text-gray-600">
             Interactive learning platform for students and administrators
@@ -78,7 +78,7 @@ const Index = () => {
       
       <footer className="bg-white py-6 border-t">
         <div className="container mx-auto px-4 text-center text-gray-500">
-          <p>&copy; {new Date().getFullYear()} Quiz Performance Hub. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Quiz Performance SASP. All rights reserved.</p>
         </div>
       </footer>
     </div>
