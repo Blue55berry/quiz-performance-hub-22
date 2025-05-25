@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/common/Navbar';
@@ -9,6 +8,8 @@ import StudentPerformanceList from '@/components/AdminComponents/StudentPerforma
 import PerformanceChart from '@/components/AdminComponents/PerformanceChart';
 import CertificateViewer from '@/components/AdminComponents/CertificateViewer';
 import CertificateStats from '@/components/AdminComponents/CertificateStats';
+import UploadedCertificates from '@/components/AdminComponents/UploadedCertificates';
+import QuizCompletionCertificates from '@/components/AdminComponents/QuizCompletionCertificates';
 import { supabase } from '@/integrations/supabase/client';
 import { File, FileCheck, User, Loader2, Award } from 'lucide-react';
 
@@ -247,11 +248,12 @@ const AdminDashboard = () => {
         </div>
         
         <Tabs defaultValue="students" className="w-full">
-          <TabsList className="grid grid-cols-4 mb-4">
+          <TabsList className="grid grid-cols-5 mb-4">
             <TabsTrigger value="students">Student Management</TabsTrigger>
             <TabsTrigger value="performance">Student Performance</TabsTrigger>
             <TabsTrigger value="analytics">Performance Analytics</TabsTrigger>
-            <TabsTrigger value="certificates">Certificates</TabsTrigger>
+            <TabsTrigger value="uploaded-certificates">Uploaded Certificates</TabsTrigger>
+            <TabsTrigger value="quiz-certificates">Quiz Certificates</TabsTrigger>
           </TabsList>
           
           <TabsContent value="students">
@@ -279,11 +281,15 @@ const AdminDashboard = () => {
             </div>
           </TabsContent>
           
-          <TabsContent value="certificates">
+          <TabsContent value="uploaded-certificates">
             <div className="space-y-6">
               <CertificateStats />
-              <CertificateViewer />
+              <UploadedCertificates />
             </div>
+          </TabsContent>
+          
+          <TabsContent value="quiz-certificates">
+            <QuizCompletionCertificates />
           </TabsContent>
         </Tabs>
       </main>
