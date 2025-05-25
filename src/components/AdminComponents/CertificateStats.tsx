@@ -1,20 +1,29 @@
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Award, Users, ArrowUpRight, Loader2, TrendingUp } from "lucide-react";
 import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Award, Users, CheckCircle, TrendingUp } from "lucide-react";
+
+interface CertificateStats {
+  totalCertificates: number;
+  verifiedCertificates: number;
+  studentsWithCertificates: number;
+  recentUploads: number;
+}
 
 const CertificateStats = () => {
-  const [totalCertificates, setTotalCertificates] = useState<number>(0);
-  const [verifiedCertificates, setVerifiedCertificates] = useState<number>(0);
-  const [studentsWithCertificates, setStudentsWithCertificates] = useState<number>(0);
-  const [recentCertificates, setRecentCertificates] = useState<number>(0);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  
+  const [stats, setStats] = useState<CertificateStats>({
+    totalCertificates: 0,
+    verifiedCertificates: 0,
+    studentsWithCertificates: 0,
+    recentUploads: 0
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
     fetchCertificateStats();
     
-    // Subscribe to changes on the certificates table
+    // Set up real-time subscription
     const subscription = supabase
       .channel('certificate-stats-changes')
       .on('postgres_changes', 
@@ -23,8 +32,8 @@ const CertificateStats = () => {
           schema: 'public', 
           table: 'certificates' 
         }, 
-        (payload) => {
-          console.log('Certificate changes detected, refreshing stats...', payload);
+        () => {
+          console.log('Certificate changes detected, updating stats...');
           fetchCertificateStats();
         }
       )
@@ -34,155 +43,99 @@ const CertificateStats = () => {
       subscription.unsubscribe();
     };
   }, []);
-  
+
   const fetchCertificateStats = async () => {
     try {
       setIsLoading(true);
       
-      // Get total certificates
-      const { count: certCount, error: certError } = await supabase
+      // Fetch all uploaded certificates
+      const { data: certificates, error } = await supabase
         .from('certificates')
-        .select('*', { count: 'exact', head: true });
+        .select('student_id, verified, created_at');
         
-      if (certError) throw certError;
+      if (error) throw error;
       
-      // Get verified certificates
-      const { count: verifiedCount, error: verifiedError } = await supabase
-        .from('certificates')
-        .select('*', { count: 'exact', head: true })
-        .eq('verified', true);
+      if (certificates) {
+        const totalCertificates = certificates.length;
+        const verifiedCertificates = certificates.filter(cert => cert.verified).length;
+        const uniqueStudents = new Set(certificates.map(cert => cert.student_id)).size;
         
-      if (verifiedError) throw verifiedError;
-      
-      // Get unique students with certificates
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('certificates')
-        .select('student_id');
+        // Count recent uploads (last 7 days)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const recentUploads = certificates.filter(cert => 
+          new Date(cert.created_at) > sevenDaysAgo
+        ).length;
         
-      if (studentsError) throw studentsError;
-      
-      // Get recent certificates (last 7 days)
-      const lastWeekDate = new Date();
-      lastWeekDate.setDate(lastWeekDate.getDate() - 7);
-      
-      const { count: recentCount, error: recentError } = await supabase
-        .from('certificates')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', lastWeekDate.toISOString());
-      
-      if (recentError) throw recentError;
-      
-      // Count unique student IDs
-      const uniqueStudentIds = new Set(studentsData?.map(cert => cert.student_id));
-      
-      setTotalCertificates(certCount || 0);
-      setVerifiedCertificates(verifiedCount || 0);
-      setStudentsWithCertificates(uniqueStudentIds.size);
-      setRecentCertificates(recentCount || 0);
+        setStats({
+          totalCertificates,
+          verifiedCertificates,
+          studentsWithCertificates: uniqueStudents,
+          recentUploads
+        });
+      }
     } catch (error) {
       console.error('Error fetching certificate stats:', error);
     } finally {
       setIsLoading(false);
     }
   };
-  
+
+  const verificationRate = stats.totalCertificates > 0 
+    ? Math.round((stats.verifiedCertificates / stats.totalCertificates) * 100)
+    : 0;
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Certificates</CardTitle>
-          <Award className="h-4 w-4 text-primary" />
+          <Award className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="flex items-center">
-            {isLoading ? (
-              <div className="flex items-center">
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                <span>Loading...</span>
-              </div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{totalCertificates}</div>
-                <div className="ml-auto text-xs text-gray-500">All time</div>
-              </>
-            )}
-          </div>
-          <CardDescription className="text-xs text-gray-500 mt-1">
-            Total certificates uploaded by students
-          </CardDescription>
+          <div className="text-2xl font-bold">{stats.totalCertificates}</div>
+          <p className="text-xs text-muted-foreground">
+            All time
+          </p>
         </CardContent>
       </Card>
       
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Verified Certificates</CardTitle>
-          <div className="bg-green-100 p-1 rounded-full">
-            <ArrowUpRight className="h-4 w-4 text-green-600" />
-          </div>
+          <CheckCircle className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="flex items-center">
-            {isLoading ? (
-              <div className="flex items-center">
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                <span>Loading...</span>
-              </div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{verifiedCertificates}</div>
-                <div className="ml-auto">
-                  {totalCertificates > 0 && (
-                    <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full">
-                      {Math.round((verifiedCertificates / totalCertificates) * 100)}%
-                    </span>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-          <CardDescription className="text-xs text-gray-500 mt-1">
-            Certificates that have been verified by admins
-          </CardDescription>
+          <div className="text-2xl font-bold">{stats.verifiedCertificates}</div>
+          <p className="text-xs text-muted-foreground">
+            {verificationRate}%
+          </p>
         </CardContent>
       </Card>
       
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Students with Certificates</CardTitle>
-          <Users className="h-4 w-4 text-primary" />
+          <Users className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="flex items-center">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              <span>Loading...</span>
-            </div>
-          ) : (
-            <div className="text-2xl font-bold">{studentsWithCertificates}</div>
-          )}
-          <CardDescription className="text-xs text-gray-500 mt-1">
+          <div className="text-2xl font-bold">{stats.studentsWithCertificates}</div>
+          <p className="text-xs text-muted-foreground">
             Unique students who uploaded certificates
-          </CardDescription>
+          </p>
         </CardContent>
       </Card>
       
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Recent Uploads</CardTitle>
-          <TrendingUp className="h-4 w-4 text-primary" />
+          <TrendingUp className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="flex items-center">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              <span>Loading...</span>
-            </div>
-          ) : (
-            <div className="text-2xl font-bold">{recentCertificates}</div>
-          )}
-          <CardDescription className="text-xs text-gray-500 mt-1">
+          <div className="text-2xl font-bold">{stats.recentUploads}</div>
+          <p className="text-xs text-muted-foreground">
             Certificates uploaded in the last 7 days
-          </CardDescription>
+          </p>
         </CardContent>
       </Card>
     </div>

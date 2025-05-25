@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Award, CheckCircle, XCircle, Loader2, RefreshCw, Clock, Upload } from "lucide-react";
+import { Search, Award, CheckCircle, XCircle, Loader2, RefreshCw, Clock, Upload, Trash2, Edit } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface UploadedCertificate {
   id: string;
@@ -17,6 +19,7 @@ interface UploadedCertificate {
   verified: boolean;
   created_at: string;
   studentName?: string;
+  studentRollNumber?: string;
 }
 
 const UploadedCertificates = () => {
@@ -25,6 +28,9 @@ const UploadedCertificates = () => {
   const [filteredCertificates, setFilteredCertificates] = useState<UploadedCertificate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingCert, setEditingCert] = useState<UploadedCertificate | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   
   useEffect(() => {
     fetchUploadedCertificates();
@@ -46,6 +52,16 @@ const UploadedCertificates = () => {
               title: "New certificate uploaded",
               description: "A student has uploaded a new certificate"
             });
+          } else if (payload.eventType === 'UPDATE') {
+            toast({
+              title: "Certificate updated",
+              description: "A certificate has been updated"
+            });
+          } else if (payload.eventType === 'DELETE') {
+            toast({
+              title: "Certificate deleted",
+              description: "A certificate has been removed"
+            });
           }
         }
       )
@@ -60,6 +76,7 @@ const UploadedCertificates = () => {
     try {
       setIsLoading(true);
       
+      // Only fetch uploaded certificates (not quiz-generated ones)
       const { data: certData, error: certError } = await supabase
         .from('certificates')
         .select('*')
@@ -72,13 +89,14 @@ const UploadedCertificates = () => {
           certData.map(async (cert) => {
             const { data: studentData } = await supabase
               .from('students')
-              .select('name')
+              .select('name, roll_number')
               .eq('id', cert.student_id)
               .single();
               
             return {
               ...cert,
-              studentName: studentData?.name || 'Unknown Student'
+              studentName: studentData?.name || 'Unknown Student',
+              studentRollNumber: studentData?.roll_number || 'N/A'
             };
           })
         );
@@ -105,7 +123,8 @@ const UploadedCertificates = () => {
       const query = searchQuery.toLowerCase();
       const filtered = certificates.filter(cert => 
         (cert.studentName?.toLowerCase().includes(query)) || 
-        (cert.title?.toLowerCase().includes(query))
+        (cert.title?.toLowerCase().includes(query)) ||
+        (cert.studentRollNumber?.toLowerCase().includes(query))
       );
       setFilteredCertificates(filtered);
     }
@@ -138,6 +157,79 @@ const UploadedCertificates = () => {
         variant: "destructive",
         title: "Update failed",
         description: "Failed to update certificate verification status."
+      });
+    }
+  };
+
+  const handleDeleteCertificate = async (certId: string) => {
+    if (!confirm('Are you sure you want to delete this certificate? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('certificates')
+        .delete()
+        .eq('id', certId);
+        
+      if (error) throw error;
+      
+      setCertificates(prev => prev.filter(cert => cert.id !== certId));
+      setFilteredCertificates(prev => prev.filter(cert => cert.id !== certId));
+      
+      toast({
+        title: "Certificate deleted",
+        description: "Certificate has been deleted successfully."
+      });
+    } catch (error) {
+      console.error('Error deleting certificate:', error);
+      toast({
+        variant: "destructive",
+        title: "Delete failed",
+        description: "Failed to delete certificate."
+      });
+    }
+  };
+
+  const handleEditCertificate = (cert: UploadedCertificate) => {
+    setEditingCert(cert);
+    setEditTitle(cert.title || '');
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateTitle = async () => {
+    if (!editingCert) return;
+
+    try {
+      const { error } = await supabase
+        .from('certificates')
+        .update({ title: editTitle })
+        .eq('id', editingCert.id);
+        
+      if (error) throw error;
+      
+      setCertificates(prev => prev.map(cert => 
+        cert.id === editingCert.id ? { ...cert, title: editTitle } : cert
+      ));
+      
+      setFilteredCertificates(prev => prev.map(cert => 
+        cert.id === editingCert.id ? { ...cert, title: editTitle } : cert
+      ));
+      
+      setIsEditDialogOpen(false);
+      setEditingCert(null);
+      setEditTitle('');
+      
+      toast({
+        title: "Certificate updated",
+        description: "Certificate title has been updated successfully."
+      });
+    } catch (error) {
+      console.error('Error updating certificate:', error);
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "Failed to update certificate title."
       });
     }
   };
@@ -181,7 +273,7 @@ const UploadedCertificates = () => {
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
         <Input
-          placeholder="Search by student name or certificate title..."
+          placeholder="Search by student name, certificate title, or roll number..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -205,6 +297,7 @@ const UploadedCertificates = () => {
                   </Badge>
                 </div>
                 <p className="text-sm text-gray-600">Student: {cert.studentName}</p>
+                <p className="text-xs text-gray-500">Roll: {cert.studentRollNumber}</p>
               </CardHeader>
               <CardContent className="pt-4">
                 <div className="text-sm text-gray-600 mb-3">
@@ -227,6 +320,16 @@ const UploadedCertificates = () => {
                   
                   <Button 
                     size="sm"
+                    variant="outline"
+                    onClick={() => handleEditCertificate(cert)}
+                    className="w-full"
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit Title
+                  </Button>
+                  
+                  <Button 
+                    size="sm"
                     variant={cert.verified ? "destructive" : "default"}
                     onClick={() => handleToggleVerification(cert.id, cert.verified)}
                     className="w-full"
@@ -242,6 +345,16 @@ const UploadedCertificates = () => {
                         Verify
                       </>
                     )}
+                  </Button>
+                  
+                  <Button 
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleDeleteCertificate(cert.id)}
+                    className="w-full"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
                   </Button>
                 </div>
               </CardContent>
@@ -259,6 +372,33 @@ const UploadedCertificates = () => {
           </p>
         </div>
       )}
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Certificate Title</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="title">Certificate Title</Label>
+              <Input
+                id="title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Enter certificate title"
+              />
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateTitle}>
+                Update Title
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
